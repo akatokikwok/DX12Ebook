@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // d3dApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -77,13 +77,13 @@ int D3DApp::Run()
 
 	while(msg.message != WM_QUIT)
 	{
-		// If there are Window messages then process them.
+		// 如果有窗口消息就处理一下
 		if(PeekMessage( &msg, 0, 0, 0, PM_REMOVE ))
 		{
             TranslateMessage( &msg );
             DispatchMessage( &msg );
 		}
-		// Otherwise, do animation/game stuff.
+		// 否则就应该正常执行 游戏逻辑
 		else
         {	
 			mTimer.Tick();
@@ -162,16 +162,22 @@ void D3DApp::OnResize()
 		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
 
 	mCurrBackBuffer = 0;
- 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+	
+	// CD3D12构造函数利用给定的偏移值可以查找到当前backbuffer的RTV
+	// 使用CD3D12构造一个描述符句柄,供给后续创造RTV的时机用
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());//是一个视图句柄
+	// 遍历查找交换链里每一个缓冲
 	for (UINT i = 0; i < SwapChainBufferCount; i++)
 	{
+		// 拿到交换链内部第i个缓冲
 		ThrowIfFailed(mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i])));
+		// 为这i号缓冲创建RTV
 		md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
+		// 偏移到视图堆里的下一个视图句柄
 		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
 	}
 
-    // Create the depth/stencil buffer and view.
+    // 填充深度模板的 "资源结构体"; 供给后续创建深度模板资源用CreateCommittedResource
     D3D12_RESOURCE_DESC depthStencilDesc;
     depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
     depthStencilDesc.Alignment = 0;
@@ -179,42 +185,46 @@ void D3DApp::OnResize()
     depthStencilDesc.Height = mClientHeight;
     depthStencilDesc.DepthOrArraySize = 1;
     depthStencilDesc.MipLevels = 1;
-
 	// Correction 11/12/2016: SSAO chapter requires an SRV to the depth buffer to read from 
 	// the depth buffer.  Therefore, because we need to create two views to the same resource:
 	//   1. SRV format: DXGI_FORMAT_R24_UNORM_X8_TYPELESS
 	//   2. DSV Format: DXGI_FORMAT_D24_UNORM_S8_UINT
 	// we need to create the depth buffer resource with a typeless format.  
 	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-
     depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
     depthStencilDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
     depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
+	// 填充清除值结构体;供给后续创建深度模板资源用CreateCommittedResource
     D3D12_CLEAR_VALUE optClear;
     optClear.Format = mDepthStencilFormat;
     optClear.DepthStencil.Depth = 1.0f;
     optClear.DepthStencil.Stencil = 0;
+	/// 创建GPU资源(这里是为了深度模板缓冲,深度模板也是一种2D纹理)
     ThrowIfFailed(md3dDevice->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),// 由于是深度模板视图,所以不需要CPU读,所以放在默认堆,而非上传堆
 		D3D12_HEAP_FLAG_NONE,
         &depthStencilDesc,
-		D3D12_RESOURCE_STATE_COMMON,
-        &optClear,
-        IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
+		D3D12_RESOURCE_STATE_COMMON,// 此刻深度模板资源的管线状态设为COMMON
+        &optClear,// 清除值
+        IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf()))// 返回创建出来的深度模板COM指针
+	);
 
     // Create descriptor to mip level 0 of entire resource using the format of the resource.
+	/// 填充专门的深度模板描述符 结构体; 并利用深度模板缓存描述符 为深度模板缓存资源的第0层mip层创建描述符
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
 	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 	dsvDesc.Format = mDepthStencilFormat;
 	dsvDesc.Texture2D.MipSlice = 0;
-    md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
+    md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());// 创建深度模板视图(类似于创建渲染目标视图),他也需要一个视图句柄
 
-    // Transition the resource from its initial state to be used as a depth buffer.
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),
-		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+    /// 利用资源屏障把深度模板缓冲从 初始COMMON状态 切换为 读写状态
+	mCommandList->ResourceBarrier(
+		1, 
+		&CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE)
+	);
 	
     // Execute the resize commands.
     ThrowIfFailed(mCommandList->Close());
@@ -562,10 +572,12 @@ ID3D12Resource* D3DApp::CurrentBackBuffer()const
 
 D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferView()const
 {
+	/* 利用这个C3D12构造函数来 依据偏移值(实际上就是第几块后台缓存)查找后台缓存里的RTV*/
 	return CD3DX12_CPU_DESCRIPTOR_HANDLE(
-		mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
-		mCurrBackBuffer,
-		mRtvDescriptorSize);
+		mRtvHeap->GetCPUDescriptorHandleForHeapStart(),// 拿渲染目标视图堆里的第一个视图句柄
+		mCurrBackBuffer,// 偏移至后台缓存的视图句柄 的索引
+		mRtvDescriptorSize// 渲染目标视图字节大小
+	);
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::DepthStencilView()const

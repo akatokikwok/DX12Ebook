@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // d3dApp.h by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -63,7 +63,9 @@ protected:
 	void FlushCommandQueue();
 
 	ID3D12Resource* CurrentBackBuffer()const;
+	/* 根据已有的RtvHeap, 利用这个C3D12构造函数来 依据偏移值(实际上就是第几块后台缓存)查找后台缓存里的RTV*/
 	D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
+	/* 根据已有的DSVHeap, 拿到深度模板资源的视图句柄*/
 	D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
 
 	void CalculateFrameStats();
@@ -88,7 +90,7 @@ protected:
     bool      m4xMsaaState = false;    // 4X MSAA enabled
     UINT      m4xMsaaQuality = 0;      // quality level of 4X MSAA
 
-	// Used to keep track of the �delta-time?and game time (?.4).
+	// Used to keep track of the 揹elta-time?and game time (?.4).
 	GameTimer mTimer;
 	
     Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;

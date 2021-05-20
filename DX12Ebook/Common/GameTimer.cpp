@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // GameTimer.cpp by Frank Luna (C) 2011 All Rights Reserved.
 //***************************************************************************************
 
@@ -56,10 +56,10 @@ float GameTimer::DeltaTime()const
 void GameTimer::Reset()
 {
 	__int64 currTime;
-	QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
+	QueryPerformanceCounter((LARGE_INTEGER*)&currTime);// 查到当前时刻
 
-	mBaseTime = currTime;
-	mPrevTime = currTime;
+	mBaseTime = currTime; 
+	mPrevTime = currTime;//前一帧被设置为本帧数据,是因为第一帧之前不可能还有帧了,所以在消息循环之前需要对前一帧执行初始化
 	mStopTime = 0;
 	mStopped  = false;
 }
@@ -106,19 +106,18 @@ void GameTimer::Tick()
 		return;
 	}
 
+	// 获得本帧开始的 时刻
 	__int64 currTime;
 	QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
 	mCurrTime = currTime;
 
-	// Time difference between this frame and the previous.
+	// 本帧与上一帧的时间差   (用时刻乘以转换因子)
 	mDeltaTime = (mCurrTime - mPrevTime)*mSecondsPerCount;
 
-	// Prepare for next frame.
+	// 把上一帧更新为本帧的值, 准备计算本帧与下一帧的时间差
 	mPrevTime = mCurrTime;
 
-	// Force nonnegative.  The DXSDK's CDXUTTimer mentions that if the 
-	// processor goes into a power save mode or we get shuffled to another
-	// processor, then mDeltaTime can be negative.
+	// 注意!如果CPU处于节能模式,或者切换了CPU,则时间差 大概率会出现负值,是异常的,需要重置应对一下
 	if(mDeltaTime < 0.0)
 	{
 		mDeltaTime = 0.0;
