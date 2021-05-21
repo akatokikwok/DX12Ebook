@@ -39,8 +39,8 @@ float GameTimer::TotalTime()const
 	//  (mCurrTime - mPausedTime) - mBaseTime 
 	//
 	//                     |<--paused time-->|
-	// ----*---------------*-----------------*------------*------> time
-	//  mBaseTime       mStopTime        startTime     mCurrTime
+	// ----*---------------*-----------------*------------------------*------> time
+	//  mBaseTime       mStopTime        startTime					mCurrTime
 	
 	else
 	{
@@ -66,6 +66,7 @@ void GameTimer::Reset()
 
 void GameTimer::Start()
 {
+	// 先查询 已经游玩了多长时间,拿到这个时刻
 	__int64 startTime;
 	QueryPerformanceCounter((LARGE_INTEGER*)&startTime);
 
@@ -76,23 +77,30 @@ void GameTimer::Start()
 	// ----*---------------*-----------------*------------> time
 	//  mBaseTime       mStopTime        startTime     
 
+	// 假若停止标志被命中
 	if( mStopped )
 	{
+		// 停止的时间长 等于累加出来的 开始时刻减去停止时刻的差
 		mPausedTime += (startTime - mStopTime);	
-
+		// 上一帧时刻被更新,着手计算下一帧
 		mPrevTime = startTime;
+		// 清零停止的时长
 		mStopTime = 0;
+		// 解除命中程序停止标志
 		mStopped  = false;
 	}
 }
 
 void GameTimer::Stop()
 {
+	// 
 	if( !mStopped )
 	{
+		// 查询当前时刻
 		__int64 currTime;
 		QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
 
+		// 存储暂停的时刻,并命中程序停止标志
 		mStopTime = currTime;
 		mStopped  = true;
 	}

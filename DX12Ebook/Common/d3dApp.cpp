@@ -247,25 +247,26 @@ void D3DApp::OnResize()
  
 LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	// 处理外部消息或者状态
 	switch( msg )
 	{
-	// WM_ACTIVATE is sent when the window is activated or deactivated.  
-	// We pause the game when the window is deactivated and unpause it 
-	// when it becomes active.  
+	
+	// WM_ACTIVATE 消息会被发送 只要当渲染程序被激活或者进入非激活时
+	// We pause the game when the window is deactivated and unpause it when it becomes active.  
 	case WM_ACTIVATE:
-		if( LOWORD(wParam) == WA_INACTIVE )
+		if( LOWORD(wParam) == WA_INACTIVE )// 当程序切换为不活动时候
 		{
-			mAppPaused = true;
-			mTimer.Stop();
+			mAppPaused = true;// 命中程序暂停
+			mTimer.Stop();// 暂停计数器
 		}
-		else
+		else// 当程序切换为活动
 		{
 			mAppPaused = false;
-			mTimer.Start();
+			mTimer.Start();// 启用计数器
 		}
 		return 0;
 
-	// WM_SIZE is sent when the user resizes the window.  
+	// WM_SIZE is sent 当显示窗口发生大小变化
 	case WM_SIZE:
 		// Save the new client area dimensions.
 		mClientWidth  = LOWORD(lParam);
@@ -322,34 +323,33 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 		return 0;
 
-	// WM_EXITSIZEMOVE is sent when the user grabs the resize bars.
+	// WM_EXITSIZEMOVE is sent 当用户抓取resize bar的时候
 	case WM_ENTERSIZEMOVE:
-		mAppPaused = true;
-		mResizing  = true;
-		mTimer.Stop();
+		mAppPaused = true;// 暂停程序
+		mResizing  = true;// 启用重设尺寸
+		mTimer.Stop();// 停用计数器
 		return 0;
 
-	// WM_EXITSIZEMOVE is sent when the user releases the resize bars.
-	// Here we reset everything based on the new window dimensions.
+	// WM_EXITSIZEMOVE is sent 当用户松开释放resize bar的时候
+	// 此处根据更改尺寸后的窗口大小 重设相关对象(比如缓存\视图之类的)
 	case WM_EXITSIZEMOVE:
 		mAppPaused = false;
 		mResizing  = false;
 		mTimer.Start();
-		OnResize();
+		OnResize();// 松开resize bar之后要调用,重设一些对象
 		return 0;
  
-	// WM_DESTROY is sent when the window is being destroyed.
+	// WM_DESTROY is sent 当窗口销毁就发送销毁消息
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		return 0;
 
-	// The WM_MENUCHAR message is sent when a menu is active and the user presses 
-	// a key that does not correspond to any mnemonic or accelerator key. 
+	// The WM_MENUCHAR message is sent 当某种菜单被激活同时又满足非加速键位\助记键
 	case WM_MENUCHAR:
         // Don't beep when we alt-enter.
         return MAKELRESULT(0, MNC_CLOSE);
 
-	// Catch this message so to prevent the window from becoming too small.
+	// 这个消息会被补货 当窗口尺寸变的过小
 	case WM_GETMINMAXINFO:
 		((MINMAXINFO*)lParam)->ptMinTrackSize.x = 200;
 		((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200; 
@@ -587,16 +587,15 @@ D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::DepthStencilView()const
 
 void D3DApp::CalculateFrameStats()
 {
-	// Code computes the average frames per second, and also the 
-	// average time it takes to render one frame.  These stats 
-	// are appended to the window caption bar.
-    
+	// 这些代码计算了FPS,也计算帧渲染时间
+	// 这些计算出来的数据会被附加到窗口标题里
+
 	static int frameCnt = 0;
-	static float timeElapsed = 0.0f;
+	static float timeElapsed = 0.0f;// 每帧所花费秒数
 
 	frameCnt++;
 
-	// Compute averages over one second period.
+	// 以一秒钟为标准计算FPS和帧渲染时间
 	if( (mTimer.TotalTime() - timeElapsed) >= 1.0f )
 	{
 		float fps = (float)frameCnt; // fps = frameCnt / 1
@@ -606,8 +605,8 @@ void D3DApp::CalculateFrameStats()
         wstring mspfStr = to_wstring(mspf);
 
         wstring windowText = mMainWndCaption +
-            L"    fps: " + fpsStr +
-            L"   mspf: " + mspfStr;
+            L"    每秒平均帧数: " + fpsStr +
+            L"   每帧平均渲染时长: " + mspfStr + L"ms";
 
         SetWindowText(mhMainWnd, windowText.c_str());
 		
