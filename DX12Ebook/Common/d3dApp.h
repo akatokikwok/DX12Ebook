@@ -117,22 +117,22 @@ protected:
     Microsoft::WRL::ComPtr<ID3D12Device> md3dDevice;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
-    UINT64 mCurrentFence = 0;
+    UINT64 mCurrentFence = 0;// 当前围栏序号
 	
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue;
-    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mDirectCmdListAlloc;
-    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mDirectCmdListAlloc;// 命令分配器COM对象
+    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;// 命令列表COM对象
 
-	static const int SwapChainBufferCount = 2;
-	int mCurrBackBuffer = 0;
+	static const int SwapChainBufferCount = 2;// 交换链中缓存个数
+	int mCurrBackBuffer = 0;// 交换链中当前缓存序数,默认为0
     Microsoft::WRL::ComPtr<ID3D12Resource> mSwapChainBuffer[SwapChainBufferCount];
     Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
 
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;
 
-    D3D12_VIEWPORT mScreenViewport; 
-    D3D12_RECT mScissorRect;
+    D3D12_VIEWPORT mScreenViewport;// 视口对象
+    D3D12_RECT mScissorRect;// 裁剪矩形对象
 
 	UINT mRtvDescriptorSize = 0;
 	UINT mDsvDescriptorSize = 0;

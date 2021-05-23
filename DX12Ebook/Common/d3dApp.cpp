@@ -543,23 +543,22 @@ void D3DApp::CreateSwapChain()
 
 void D3DApp::FlushCommandQueue()
 {
-	// Advance the fence value to mark commands up to this fence point.
+	// 增加围栏值,接下来将命令命中到此围栏点
     mCurrentFence++;
 
-    // Add an instruction to the command queue to set a new fence point.  Because we 
-	// are on the GPU timeline, the new fence point won't be set until the GPU finishes
-	// processing all the commands prior to this Signal().
-    ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence));
+	// 向队列中添加一条用来设置新围栏点的命令
+	// 由于此命令由GPU负责处理,故GPU处理完队列Signal()之前的所有命令前, GPU不会再设置新的围栏点
+	ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence));
 
-	// Wait until the GPU has completed commands up to this fence point.
+	// 强制CPU等待GPU, 直到GPU处理完 这个围栏点前所有的命令
     if(mFence->GetCompletedValue() < mCurrentFence)
 	{
-		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);// 声明一个事件句柄
 
-        // Fire event when GPU hits current fence.  
+        // 当GPU命中此围栏点时候(即执行到Signal()函数修改了围栏值), 在这个围栏点上设定事件并激发
         ThrowIfFailed(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
 
-        // Wait until the GPU hits current fence event is fired.
+        // 无限等待GPU命中围栏,激发事件
 		WaitForSingleObject(eventHandle, INFINITE);
         CloseHandle(eventHandle);
 	}
