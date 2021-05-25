@@ -1,12 +1,11 @@
-﻿/*
-.fx文件VS会默认使用HLSL编译器对其进行编译，而.fx文件中并未定义main函数，所以会导致编译出错
+﻿/**
+ * .fx文件VS会默认使用HLSL编译器对其进行编译，而.fx文件中并未定义main函数，所以会导致编译出错
+ *  右键.fx文件，“属性->配置属性->常规->项类型”，将“HLSL编译器”改为“不参与生成” 
+ */
 
-右键.fx文件，“属性->配置属性->常规->项类型”，将“HLSL编译器”改为“不参与生成
-*
-*/
-#include "../../Common/d3dApp.h"
-#include "../../Common/MathHelper.h"
-#include "../../Common/UploadBuffer.h"
+#include "../Common/d3dApp.h"
+#include "../Common/MathHelper.h"
+#include "../Common/UploadBuffer.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -76,7 +75,8 @@ private:
     POINT mLastMousePos;
 };
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
+				   PSTR cmdLine, int showCmd)
 {
 	// Enable run-time memory check for debug builds.
 #if defined(DEBUG) | defined(_DEBUG)
@@ -189,9 +189,7 @@ void BoxApp::Draw(const GameTimer& gt)
     mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 	
     // Specify the buffers we are going to render to.
-    auto abc = &CurrentBackBufferView();
-    auto def = &DepthStencilView();
-	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true,&DepthStencilView() );
+	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
