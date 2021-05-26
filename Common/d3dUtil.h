@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // d3dUtil.h by Frank Luna (C) 2015 All Rights Reserved.
 //
 // General helper code.
@@ -113,7 +113,7 @@ public:
     }
 
     static Microsoft::WRL::ComPtr<ID3DBlob> LoadBinary(const std::wstring& filename);
-
+    /* 使用d3dUtil::CreateDefaultBuffer来避免重复使用默认堆操作GPU资源*/
     static Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
         ID3D12Device* device,
         ID3D12GraphicsCommandList* cmdList,
