@@ -144,12 +144,12 @@ void BoxApp::OnResize()
 
 void BoxApp::Update(const GameTimer& gt)
 {
-    // Convert Spherical to Cartesian coordinates.
+    // 球坐标转化为笛卡尔坐标
     float x = mRadius*sinf(mPhi)*cosf(mTheta);
     float z = mRadius*sinf(mPhi)*sinf(mTheta);
     float y = mRadius*cosf(mPhi);
 
-    // Build the view matrix.
+    // 构建观察矩阵
     XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
     XMVECTOR target = XMVectorZero();
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
@@ -161,10 +161,10 @@ void BoxApp::Update(const GameTimer& gt)
     XMMATRIX proj = XMLoadFloat4x4(&mProj);
     XMMATRIX worldViewProj = world*view*proj;
 
-	// Update the constant buffer with the latest worldViewProj matrix.
+	// 用最新的 WorldViewProj矩阵更新常量缓存
 	ObjectConstants objConstants;
     XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
-    mObjectCB->CopyData(0, objConstants);
+    mObjectCB->CopyData(0, objConstants);// 把常量结构体这个数据拷贝到欲更新数据里,即达成了更新常量缓存
 }
 
 void BoxApp::Draw(const GameTimer& gt)
@@ -242,26 +242,26 @@ void BoxApp::OnMouseUp(WPARAM btnState, int x, int y)
 
 void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-    if((btnState & MK_LBUTTON) != 0)
+    if((btnState & MK_LBUTTON) != 0)// 执行鼠标左键
     {
-        // Make each pixel correspond to a quarter of a degree.
+        // 根据鼠标的移动距离计算旋转角度,并令每个像素按照此角度1/4执行旋转
         float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
         float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
 
-        // Update angles based on input to orbit camera around box.
+        // 根据鼠标的输入来更新摄像机绕立方体模型的旋转角度
         mTheta += dx;
         mPhi += dy;
 
-        // Restrict the angle mPhi.
+        // CLAMP一下Phi的值
         mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
     }
-    else if((btnState & MK_RBUTTON) != 0)
+    else if((btnState & MK_RBUTTON) != 0)// 执行鼠标右键
     {
-        // Make each pixel correspond to 0.005 unit in the scene.
+        // 让场景中的每个像素按照鼠标移动距离的0.005倍执行缩放
         float dx = 0.005f*static_cast<float>(x - mLastMousePos.x);
         float dy = 0.005f*static_cast<float>(y - mLastMousePos.y);
 
-        // Update the camera radius based on input.
+        // 根据鼠标的输入值更新"摄像机的可视范围半径"
         mRadius += dx - dy;
 
         // Restrict the radius.
