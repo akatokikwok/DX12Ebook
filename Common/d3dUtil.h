@@ -113,15 +113,27 @@ public:
         return (byteSize + 255) & ~255;
     }
 
+    /*
+    * 加载.cso文件字节码到程序中
+    */
     static Microsoft::WRL::ComPtr<ID3DBlob> LoadBinary(const std::wstring& filename);
-    /* 使用d3dUtil::CreateDefaultBuffer来避免重复使用默认堆操作GPU资源*/
+
+    /* 
+    * 使用d3dUtil::CreateDefaultBuffer来避免重复使用默认堆操作GPU资源
+    */
     static Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
         ID3D12Device* device,
         ID3D12GraphicsCommandList* cmdList,
         const void* initData,
         UINT64 byteSize,
         Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
-
+    
+    /* 此辅助方法在运行时编译shader为字节码    
+    * .hlsl文件路径
+    * 默认设为空指针
+    * 着色器入口点函数名
+    * 着色器类型及其版本
+    */
 	static Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
 		const std::wstring& filename,
 		const D3D_SHADER_MACRO* defines,
@@ -143,29 +155,26 @@ public:
     int LineNumber = -1;
 };
 
-// Defines a subrange of geometry in a MeshGeometry.  This is for when multiple
-// geometries are stored in one vertex and index buffer.  It provides the offsets
-// and data needed to draw a subset of geometry stores in the vertex and index 
-// buffers so that we can implement the technique described by Figure 6.3.
+/// 此结构体提供了对于 同时存有顶点缓存和索引缓存的单个几何体进行绘制所需要的数据及偏移量
 struct SubmeshGeometry
 {
 	UINT IndexCount = 0;
 	UINT StartIndexLocation = 0;
 	INT BaseVertexLocation = 0;
 
-    // Bounding box of the geometry defined by this submesh. 
-    // This is used in later chapters of the book.
-	DirectX::BoundingBox Bounds;
+    // 当前子网格中所存有的 几何体包围盒
+    DirectX::BoundingBox Bounds;
 };
 
+/// 当需要绘制多个几何体,就是用此结构体
 struct MeshGeometry
 {
-	// Give it a name so we can look it up by name.
+	// 指定此几何体的名字,方便后续利用名字查找
 	std::string Name;
 
-	// System memory copies.  Use Blobs because the vertex/index format can be generic.
-	// It is up to the client to cast appropriately.  
-	Microsoft::WRL::ComPtr<ID3DBlob> VertexBufferCPU = nullptr;
+    /// 由于顶点/索引可以是泛型格式,故允许用Blob来表示;待合适时机在转换为适当类型格式
+    /// 注意!!!这里是后缀为CPU,它们都是系统内存中的副本
+    Microsoft::WRL::ComPtr<ID3DBlob> VertexBufferCPU = nullptr;
 	Microsoft::WRL::ComPtr<ID3DBlob> IndexBufferCPU  = nullptr;
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferGPU = nullptr;
@@ -174,17 +183,18 @@ struct MeshGeometry
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferUploader = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> IndexBufferUploader = nullptr;
 
-    // Data about the buffers.
-	UINT VertexByteStride = 0;
-	UINT VertexBufferByteSize = 0;
-	DXGI_FORMAT IndexFormat = DXGI_FORMAT_R16_UINT;
-	UINT IndexBufferByteSize = 0;
+    // 与缓存区相关联的数据
+	UINT VertexByteStride = 0;// 顶点字节偏移
+	UINT VertexBufferByteSize = 0;// 顶点缓存字节大小
+	DXGI_FORMAT IndexFormat = DXGI_FORMAT_R16_UINT;// 索引格式
+	UINT IndexBufferByteSize = 0;// 索引缓存字节大小
 
-	// A MeshGeometry may store multiple geometries in one vertex/index buffer.
-	// Use this container to define the Submesh geometries so we can draw
-	// the Submeshes individually.
-	std::unordered_map<std::string, SubmeshGeometry> DrawArgs;
+    /// 一张表
+    /// 一个MeshGeometry结构体允许存储一组顶点\索引缓存区 的多个几何体
+    /// 使用下列无序map就可以定义subMeshGeometry几何体, 并允许单独地绘制出其中的子网格(即单个几何体)
+    std::unordered_map<std::string, SubmeshGeometry> DrawArgs;
 
+    /* 利用类成员数据返回一个顶点缓存视图*/
 	D3D12_VERTEX_BUFFER_VIEW VertexBufferView()const
 	{
 		D3D12_VERTEX_BUFFER_VIEW vbv;
@@ -195,6 +205,7 @@ struct MeshGeometry
 		return vbv;
 	}
 
+    /* 利用类成员数据返回一个索引缓存视图*/
 	D3D12_INDEX_BUFFER_VIEW IndexBufferView()const
 	{
 		D3D12_INDEX_BUFFER_VIEW ibv;
@@ -205,7 +216,7 @@ struct MeshGeometry
 		return ibv;
 	}
 
-	// We can free this memory after we finish upload to the GPU.
+	/* 待数据上传至GPU后的时机, 就可以置空上传资源nullptr, 以此释放这些成员数据里的内存了*/
 	void DisposeUploaders()
 	{
 		VertexBufferUploader = nullptr;

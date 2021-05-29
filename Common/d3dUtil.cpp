@@ -92,6 +92,7 @@ ComPtr<ID3DBlob> d3dUtil::CompileShader(
 	const std::string& entrypoint,
 	const std::string& target)
 {
+    // 若处于调试模式,则使用调试标志
 	UINT compileFlags = 0;
 #if defined(DEBUG) || defined(_DEBUG)  
 	compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
