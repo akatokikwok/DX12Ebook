@@ -6,8 +6,8 @@
 #include "GameTimer.h"
 
 GameTimer::GameTimer()
-: mSecondsPerCount(0.0), mDeltaTime(-1.0), mBaseTime(0), 
-  mPausedTime(0), mPrevTime(0), mCurrTime(0), mStopped(false)
+	: mSecondsPerCount(0.0), mDeltaTime(-1.0), mBaseTime(0),
+	mPausedTime(0), mPrevTime(0), mCurrTime(0), mStopped(false)
 {
 	__int64 countsPerSec;
 	QueryPerformanceFrequency((LARGE_INTEGER*)&countsPerSec);
@@ -27,9 +27,9 @@ float GameTimer::TotalTime()const
 	// ----*---------------*-----------------*------------*------------*------> time
 	//  mBaseTime       mStopTime        startTime     mStopTime    mCurrTime
 
-	if( mStopped )
+	if (mStopped)
 	{
-		return (float)(((mStopTime - mPausedTime)-mBaseTime)*mSecondsPerCount);
+		return (float)(((mStopTime - mPausedTime) - mBaseTime) * mSecondsPerCount);
 	}
 
 	// The distance mCurrTime - mBaseTime includes paused time,
@@ -41,10 +41,10 @@ float GameTimer::TotalTime()const
 	//                     |<--paused time-->|
 	// ----*---------------*-----------------*------------------------*------> time
 	//  mBaseTime       mStopTime        startTime					mCurrTime
-	
+
 	else
 	{
-		return (float)(((mCurrTime-mPausedTime)-mBaseTime)*mSecondsPerCount);
+		return (float)(((mCurrTime - mPausedTime) - mBaseTime) * mSecondsPerCount);
 	}
 }
 
@@ -58,10 +58,10 @@ void GameTimer::Reset()
 	__int64 currTime;
 	QueryPerformanceCounter((LARGE_INTEGER*)&currTime);// 查到当前时刻
 
-	mBaseTime = currTime; 
+	mBaseTime = currTime;
 	mPrevTime = currTime;//前一帧被设置为本帧数据,是因为第一帧之前不可能还有帧了,所以在消息循环之前需要对前一帧执行初始化
 	mStopTime = 0;
-	mStopped  = false;
+	mStopped = false;
 }
 
 void GameTimer::Start()
@@ -78,23 +78,23 @@ void GameTimer::Start()
 	//  mBaseTime       mStopTime        startTime     
 
 	// 假若停止标志被命中
-	if( mStopped )
+	if (mStopped)
 	{
 		// 停止的时间长 等于累加出来的 开始时刻减去停止时刻的差
-		mPausedTime += (startTime - mStopTime);	
+		mPausedTime += (startTime - mStopTime);
 		// 上一帧时刻被更新,着手计算下一帧
 		mPrevTime = startTime;
 		// 清零停止的时长
 		mStopTime = 0;
 		// 解除命中程序停止标志
-		mStopped  = false;
+		mStopped = false;
 	}
 }
 
 void GameTimer::Stop()
 {
 	// 
-	if( !mStopped )
+	if (!mStopped)
 	{
 		// 查询当前时刻
 		__int64 currTime;
@@ -102,13 +102,13 @@ void GameTimer::Stop()
 
 		// 存储暂停的时刻,并命中程序停止标志
 		mStopTime = currTime;
-		mStopped  = true;
+		mStopped = true;
 	}
 }
 
 void GameTimer::Tick()
 {
-	if( mStopped )
+	if (mStopped)
 	{
 		mDeltaTime = 0.0;
 		return;
@@ -120,13 +120,13 @@ void GameTimer::Tick()
 	mCurrTime = currTime;
 
 	// 本帧与上一帧的时间差   (用时刻乘以转换因子)
-	mDeltaTime = (mCurrTime - mPrevTime)*mSecondsPerCount;
+	mDeltaTime = (mCurrTime - mPrevTime) * mSecondsPerCount;
 
 	// 把上一帧更新为本帧的值, 准备计算本帧与下一帧的时间差
 	mPrevTime = mCurrTime;
 
 	// 注意!如果CPU处于节能模式,或者切换了CPU,则时间差 大概率会出现负值,是异常的,需要重置应对一下
-	if(mDeltaTime < 0.0)
+	if (mDeltaTime < 0.0)
 	{
 		mDeltaTime = 0.0;
 	}

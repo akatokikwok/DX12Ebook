@@ -144,9 +144,9 @@
     <ClInclude Include="..\DX12Ebook\Common\GameTimer.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\DX12Ebook\Common\d3dApp.cpp" />
-    <ClCompile Include="..\DX12Ebook\Common\d3dUtil.cpp" />
-    <ClCompile Include="..\DX12Ebook\Common\GameTimer.cpp" />
+    <ClCompile Include="..\Common\d3dApp.cpp" />
+    <ClCompile Include="..\Common\d3dUtil.cpp" />
+    <ClCompile Include="..\Common\GameTimer.cpp" />
     <ClCompile Include="InitDirect3DApp.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
