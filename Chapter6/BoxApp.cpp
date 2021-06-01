@@ -23,6 +23,7 @@ struct Vertex
 struct ObjectConstants
 {
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();// MVP矩阵
+	
 };
 
 /// D3DApp子类
@@ -224,7 +225,7 @@ void BoxApp::Draw(const GameTimer& gt)
 	);
 
 	// 清除后台缓存(渲染目标) 和 深度缓存
-	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::Red, 0, nullptr);// 用深蓝色
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::SteelBlue, 0, nullptr);// 用深蓝色
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	// 在管线上设置 欲渲染的目标缓存区(此处是后台缓存), 需要两个视图(RTV和DSV)的句柄(偏移查找出来)
