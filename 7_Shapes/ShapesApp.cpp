@@ -14,34 +14,35 @@ using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 using namespace DirectX::PackedVector;
 
-const int gNumFrameResources = 3;
+const int gNumFrameResources = 3;// 一个由3个帧资源构建的向量
 
-// Lightweight structure stores parameters to draw a shape.  This will
-// vary from app-to-app.
+// 单次绘制向管线提交的有关多个绘制物数据叫作"渲染项"
+// 渲染项里目前有世界矩阵, 帧脏标记(值为帧资源数量), 此项里的物体常数缓存, 模型, 图元, DrawIndexedInstanced方法参数
 struct RenderItem
 {
     RenderItem() = default;
+    
+    XMFLOAT4X4 World = MathHelper::Identity4x4();// 绘制物世界矩阵
 
-    // World matrix of the shape that describes the object's local space
-    // relative to the world space, which defines the position, orientation,
-    // and scale of the object in the world.
-    XMFLOAT4X4 World = MathHelper::Identity4x4();
-
-    // Dirty flag indicating the object data has changed and we need to update the constant buffer.
-    // Because we have an object cbuffer for each FrameResource, we have to apply the
-    // update to each FrameResource.  Thus, when we modify obect data we should set 
-    // NumFramesDirty = gNumFrameResources so that each frame resource gets the update.
+    /// <原理理解>
+    /// 程序准备以脏标记证明渲染物的数据发生改变,暗示着需要更新常数缓存
+    /// 由于FrameResource里有各种类型的 常数缓存变量, 故需要更新每一个FrameResouce
     int NumFramesDirty = gNumFrameResources;
 
-    // Index into GPU constant buffer corresponding to the ObjectCB for this render item.
+    // 该索引指向的常数缓存,对应于 当前渲染项中的物体常数缓存
+    // 实际上就是第几个缓存区, 与上传堆里更新常数缓存的CopyData(int elementIndex, const T& data)第一参数有关系
     UINT ObjCBIndex = -1;
 
+    // 此渲染项参与绘制的几何体(即什么模型), !!PS,绘制一个模型可能用到多个渲染项
     MeshGeometry* Geo = nullptr;
 
-    // Primitive topology.
+    // 图元拓扑
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-    // DrawIndexedInstanced parameters.
+    // DrawIndexedInstanced 这个方法的参数
+    // Param1:模型里索引数量,Param2:实例化技术,默认为1, 
+    // Param3:每个模型相对于全局索引索引缓存里的起始索引序数,Param4:每个模型的第一个顶点相对于全局顶点缓存的位置,即"基准顶点地址"
+    // Param5:实例化高级技术相关,默认设为0
     UINT IndexCount = 0;
     UINT StartIndexLocation = 0;
     int BaseVertexLocation = 0;
@@ -83,9 +84,9 @@ private:
 
 private:
 
-    std::vector<std::unique_ptr<FrameResource>> mFrameResources;
-    FrameResource* mCurrFrameResource = nullptr;
-    int mCurrFrameResourceIndex = 0;
+    std::vector<std::unique_ptr<FrameResource>> mFrameResources;// 帧资源集
+    FrameResource* mCurrFrameResource = nullptr;// 当前使用的帧资源
+    int mCurrFrameResourceIndex = 0;// 当前使用的帧资源序数
 
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
@@ -98,13 +99,13 @@ private:
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
-    // List of all the render items.
+    // 渲染项列表
     std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
     // Render items divided by PSO.
     std::vector<RenderItem*> mOpaqueRitems;
 
-    PassConstants mMainPassCB;
+    PassConstants mMainPassCB;// PassConstants型常数缓存实例
 
     UINT mPassCbvOffset = 0;
 
@@ -192,17 +193,20 @@ void ShapesApp::OnResize()
     XMStoreFloat4x4(&mProj, P);
 }
 
+/// 重载框架方法:每一帧调用,更新3D渲染程序, 比如呈现动画,移动摄像机,检查输入
+/// 这里还需要额外处理CPU端第n帧的帧资源
 void ShapesApp::Update(const GameTimer& gt)
 {
     OnKeyboardInput(gt);
     UpdateCamera(gt);
 
-    // Cycle through the circular frame resource array.
-    mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
-    mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+    //**************CPU端处理第n帧的算法*********************
+    
+    // 循环往复获取帧资源数组中的元素
+    mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;// 循环拿当前帧资源序数
+    mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();// 循环拿当前帧资源裸指针
 
-    // Has the GPU finished processing the commands of the current frame resource?
-    // If not, wait until the GPU has completed commands up to this fence point.
+    // 监测GPU是否执行完当前帧命令,若还在执行中就强令CPU等待,直到GPU抵达围栏点
     if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
     {
         HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
@@ -210,21 +214,21 @@ void ShapesApp::Update(const GameTimer& gt)
         WaitForSingleObject(eventHandle, INFINITE);
         CloseHandle(eventHandle);
     }
-
+    // 更新 当前使用帧资源的值(此处是2种常数缓存,)
     UpdateObjectCBs(gt);
     UpdateMainPassCB(gt);
 }
 
 void ShapesApp::Draw(const GameTimer& gt)
 {
-    auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
+    auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;// 当前帧资源里的命令分配器
 
-    // Reuse the memory associated with command recording.
-    // We can only reset when the associated command lists have finished execution on the GPU.
+	// Reset分配器, 复用记录命令所用的内存
+	// 注意!! 只有当GPU中所有的命令列表都执行完, 才可以重置分配器
     ThrowIfFailed(cmdListAlloc->Reset());
 
-    // A command list can be reset after it has been added to the command queue via ExecuteCommandList.
-    // Reusing the command list reuses memory.
+	// 当利用函数ExecuteCommandList把列表都加入队列之后,就可以重置列表
+	// 复用命令列表内存(需要分配器和PSO)
     if (mIsWireframe)
     {
         ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
@@ -233,7 +237,8 @@ void ShapesApp::Draw(const GameTimer& gt)
     {
         ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
     }
-
+    
+    // 设置视口和裁剪矩形
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
@@ -275,13 +280,16 @@ void ShapesApp::Draw(const GameTimer& gt)
     ThrowIfFailed(mSwapChain->Present(0, 0));
     mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
-    // Advance the fence value to mark commands up to this fence point.
-    mCurrFrameResource->Fence = ++mCurrentFence;
+    // !!!增加围栏值, 把命令标记到围栏点
+    mCurrFrameResource->Fence = ++D3DApp::mCurrentFence;
 
-    // Add an instruction to the command queue to set a new fence point. 
-    // Because we are on the GPU timeline, the new fence point won't be 
-    // set until the GPU finishes processing all the commands prior to this Signal().
+    // 向命令队列添加一条指令专门用来设置一个新的围栏点
+    // 在GPU处理完Signal()之前它不会设置额外的围栏
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+
+    //***********************原理科普************************
+    // GPU快于CPU,则GPU进入空闲,GPU没有被充分利用
+    // 我们希望CPU快于GPU,则CPU多出来的空闲时间用于处理GAMEPLAY逻辑
 }
 
 void ShapesApp::OnMouseDown(WPARAM btnState, int x, int y)
@@ -353,38 +361,43 @@ void ShapesApp::UpdateCamera(const GameTimer& gt)
     XMStoreFloat4x4(&mView, view);
 }
 
+/// 更新ObjectConstants型常数缓存,供Update()调用
 void ShapesApp::UpdateObjectCBs(const GameTimer& gt)
 {
-    auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+    auto currObjectCB = mCurrFrameResource->ObjectCB.get();// 当前帧资源里ObjectCB裸指针
+    // 遍历所有渲染项(单个渲染项含有单次绘制所有绘制物数据)
+    // e是每次的渲染项
     for (auto& e : mAllRitems)
     {
-        // Only update the cbuffer data if the constants have changed.  
-        // This needs to be tracked per frame resource.
+        // 只要常量发生改变, 帧脏标记就必须对所有RenderItem执行更新
         if (e->NumFramesDirty > 0)
         {
-            XMMATRIX world = XMLoadFloat4x4(&e->World);
-
+            // 每次的渲染项里都存有物体的世界矩阵数据, 把它做成数据源,更新常数缓存用
+            XMMATRIX world = XMLoadFloat4x4(&e->World);//
             ObjectConstants objConstants;
             XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
 
+            // 当前帧常数缓存得到更新(使用上传堆的CopyData方法)
             currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
-            // Next FrameResource need to be updated too.
-            e->NumFramesDirty--;
+            // 还需要对下一个FrameResource执行更新
+            e->NumFramesDirty--;// 用--是因为条件里e->NumFramesDirty > 0
         }
     }
 }
 
+/// 更新PassConstants型常数缓存,供Update()调用
 void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 {
+
     XMMATRIX view = XMLoadFloat4x4(&mView);
     XMMATRIX proj = XMLoadFloat4x4(&mProj);
-
     XMMATRIX viewProj = XMMatrixMultiply(view, proj);
     XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
     XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
     XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
 
+    // 填充结构体mMainPassCB的所有成员值
     XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
     XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
     XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
@@ -399,7 +412,7 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.TotalTime = gt.TotalTime();
     mMainPassCB.DeltaTime = gt.DeltaTime();
 
-    auto currPassCB = mCurrFrameResource->PassCB.get();
+    auto currPassCB = mCurrFrameResource->PassCB.get();// 拿到当前帧资源里PassCB裸指针
     currPassCB->CopyData(0, mMainPassCB);
 }
 
@@ -476,27 +489,30 @@ void ShapesApp::BuildConstantBufferViews()
 
 void ShapesApp::BuildRootSignature()
 {
+    /// 因为此时有2种常数缓存,更新频率各异,故有2个CBV,
+    /// 所以要更新根签名来获取2个描述符table, 每个物体的CBV则要针对性的依据自身渲染项进行配置
     CD3DX12_DESCRIPTOR_RANGE cbvTable0;
     cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-
     CD3DX12_DESCRIPTOR_RANGE cbvTable1;
     cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
 
-    // Root parameter can be a table, root descriptor or root constants.
+    // 声明带 2 个元素的 根参数数组
     CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
-    // Create root CBVs.
+    // 结合上述根参数数组 选型并创建出 2个CBV的描述符table
     slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
     slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
 
-    // A root signature is an array of root parameters.
+    // 根签名由一系列根参数构成
     CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr,
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-    // create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+    // 初始化序列根签名, 此处的serializedRootSig指向1个仅有单个CBUFFER组成的描述符)
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
     ComPtr<ID3DBlob> errorBlob = nullptr;
-    HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+    HRESULT hr = D3D12SerializeRootSignature(
+        &rootSigDesc,
+        D3D_ROOT_SIGNATURE_VERSION_1,
         serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
 
     if (errorBlob != nullptr)
@@ -504,7 +520,7 @@ void ShapesApp::BuildRootSignature()
         ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
     }
     ThrowIfFailed(hr);
-
+    // 创建出最终的根签名
     ThrowIfFailed(md3dDevice->CreateRootSignature(
         0,
         serializedRootSig->GetBufferPointer(),
@@ -690,12 +706,14 @@ void ShapesApp::BuildPSOs()
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 }
 
+/// 构建3个帧资源构成的帧资源集
 void ShapesApp::BuildFrameResources()
 {
     for (int i = 0; i < gNumFrameResources; ++i)
     {
         mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-            1, (UINT)mAllRitems.size()));
+            1, (UINT)mAllRitems.size())
+        );
     }
 }
 

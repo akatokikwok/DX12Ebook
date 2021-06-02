@@ -11,6 +11,10 @@ template<typename T>
 class UploadBuffer
 {
 public:
+    /* 构造器负责
+    * 1.256化泛型T实例的字节大小
+    * 2.创建出上传堆资源来匹配CPU端
+    * 3.用Map映射出上传堆资源里欲更新的数据*/     
     UploadBuffer(ID3D12Device* device, UINT elementCount, bool isConstantBuffer) : 
         mIsConstantBuffer(isConstantBuffer)
     {
@@ -37,6 +41,9 @@ public:
 
     UploadBuffer(const UploadBuffer& rhs) = delete;
     UploadBuffer& operator=(const UploadBuffer& rhs) = delete;
+
+    /* 析构器负责
+    * 析构的时候上传堆资源取消映射并置空欲更新数据*/
     ~UploadBuffer()
     {
         // 析构的时候,就顺带取消映射上传资源
@@ -54,7 +61,7 @@ public:
 
     /* 将真正的内存数据,复制到 映射出的欲更新数据中, 以此达成从CPU端拷贝内存到常量缓存
     * 参数1: 第几个缓存区
-    * 参数2: 真正的内存数据,数据来源 */
+    * 参数2: 真正的内存数据,数据来源 泛型T型实例, 而T为特定的常量缓存结构体类型 */
     void CopyData(int elementIndex, const T& data)
     {
         memcpy(&mMappedData[elementIndex*mElementByteSize], &data, sizeof(T));

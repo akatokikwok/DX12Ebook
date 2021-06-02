@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // GeometryGenerator.h by Frank Luna (C) 2011 All Rights Reserved.
 //   
 // Defines a static class for procedurally generating the geometry of 
@@ -18,6 +18,9 @@
 #include <DirectXMath.h>
 #include <vector>
 
+/* 用户提供参数以自动生成的几何体存入GeometryGenerator类里
+* 它是一个工具类,用于生成栅格,球体,柱体,长方体 
+* 此类还可以创建出后续技术要使用的顶点数据,然后存到顶点缓存里*/
 class GeometryGenerator
 {
 public:
@@ -25,6 +28,7 @@ public:
     using uint16 = std::uint16_t;
     using uint32 = std::uint32_t;
 
+	/* 顶点结构体, 带有Postion, Normal, Tangent, uv等构造器*/
 	struct Vertex
 	{
 		Vertex(){}
@@ -53,6 +57,7 @@ public:
         DirectX::XMFLOAT2 TexC;
 	};
 
+	/* MeshData是一个嵌套在GeometryGenerator类里用于存储顶点\索引表的简易结构体*/
 	struct MeshData
 	{
 		std::vector<Vertex> Vertices;
@@ -92,12 +97,9 @@ public:
 	///</summary>
     MeshData CreateGeosphere(float radius, uint32 numSubdivisions);
 
-	///<summary>
-	/// Creates a cylinder parallel to the y-axis, and centered about the origin.  
-	/// The bottom and top radius can vary to form various cone shapes rather than true
-	// cylinders.  The slices and stacks parameters control the degree of tessellation.
-	///</summary>
-    MeshData CreateCylinder(float bottomRadius, float topRadius, float height, uint32 sliceCount, uint32 stackCount);
+	
+	/// 生成圆台的基本思路是遍历每个环, 并生成位于环上的各个顶点
+	MeshData CreateCylinder(float bottomRadius, float topRadius, float height, uint32 sliceCount,/*切片数量*/ uint32 stackCount/*层数*/);
 
 	///<summary>
 	/// Creates an mxn grid in the xz-plane with m rows and n columns, centered

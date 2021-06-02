@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // GeometryGenerator.cpp by Frank Luna (C) 2011 All Rights Reserved.
 //***************************************************************************************
 
@@ -384,24 +384,26 @@ GeometryGenerator::MeshData GeometryGenerator::CreateCylinder(float bottomRadius
     MeshData meshData;
 
 	//
-	// Build Stacks.
+	// 构建堆叠层
 	// 
 
-	float stackHeight = height / stackCount;
+	float stackHeight = height / stackCount;// 拿到每层高度
 
-	// Amount to increment radius as we move up each stack level from bottom to top.
+	// 计算从下至上遍历每个相邻分层所需要的半径增量
 	float radiusStep = (topRadius - bottomRadius) / stackCount;
 
-	uint32 ringCount = stackCount+1;
+	uint32 ringCount = stackCount+1;// 共计多少环,环数==层数+1
 
-	// Compute vertices for each stack ring starting at the bottom and moving up.
+	// 遍历每个环
 	for(uint32 i = 0; i < ringCount; ++i)
 	{
-		float y = -0.5f*height + i*stackHeight;
-		float r = bottomRadius + i*radiusStep;
+		float y = -0.5f*height + i*stackHeight;// 第i环的高度值 y
+		float r = bottomRadius + i*radiusStep; //第i环的半径值 r
 
-		// vertices of ring
-		float dTheta = 2.0f*XM_PI/sliceCount;
+		// 环上的各个顶点
+		float dTheta = 2.0f*XM_PI/sliceCount;// 每个环上每个点之间的间隔长度
+
+		// 计算 第i环的第j个顶点 的各个属性值(坐标,UV,切线)
 		for(uint32 j = 0; j <= sliceCount; ++j)
 		{
 			Vertex vertex;
@@ -444,18 +446,20 @@ GeometryGenerator::MeshData GeometryGenerator::CreateCylinder(float bottomRadius
 			XMVECTOR N = XMVector3Normalize(XMVector3Cross(T, B));
 			XMStoreFloat3(&vertex.Normal, N);
 
-			meshData.Vertices.push_back(vertex);
+			meshData.Vertices.push_back(vertex);// 填充顶点数组
 		}
+		// !!!每个环上的第一个点和最后一个点位置重合,但是纹理坐标有区别
 	}
 
-	// Add one because we duplicate the first and last vertex per ring
-	// since the texture coordinates are different.
+	/// 取索引的思路是遍历每个层和每个切片,运用公式 注意i层和i+1层之间的三角形(公式就是462到471)
+
+	// +1是细节处理,让每个环第一点和最后点重合,但是纹理坐标各异
 	uint32 ringVertexCount = sliceCount+1;
 
-	// Compute indices for each stack.
+	// 计算每个侧面块里的三角形索引
 	for(uint32 i = 0; i < stackCount; ++i)
 	{
-		for(uint32 j = 0; j < sliceCount; ++j)
+		for(uint32 j = 0; j < sliceCount; ++j)// 第i层的第j个切片
 		{
 			meshData.Indices32.push_back(i*ringVertexCount + j);
 			meshData.Indices32.push_back((i+1)*ringVertexCount + j);
@@ -467,6 +471,7 @@ GeometryGenerator::MeshData GeometryGenerator::CreateCylinder(float bottomRadius
 		}
 	}
 
+	// 算顶盖和底盖
 	BuildCylinderTopCap(bottomRadius, topRadius, height, sliceCount, stackCount, meshData);
 	BuildCylinderBottomCap(bottomRadius, topRadius, height, sliceCount, stackCount, meshData);
 
