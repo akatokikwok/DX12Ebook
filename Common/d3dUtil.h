@@ -118,9 +118,9 @@ public:
     */
     static Microsoft::WRL::ComPtr<ID3DBlob> LoadBinary(const std::wstring& filename);
 
-    /* 
-    * 使用d3dUtil::CreateDefaultBuffer来避免重复使用默认堆操作GPU资源
-    */
+    /*使用d3dUtil::CreateDefaultBuffer来避免重复使用默认堆操作GPU资源 
+    * 常用于创建顶点\索引缓存
+    * 参数initData:数据源, byteSize:此种数据的大小 */
     static Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
         ID3D12Device* device,
         ID3D12GraphicsCommandList* cmdList,
@@ -158,9 +158,9 @@ public:
 /// 此结构体提供了对于 同时存有顶点缓存和索引缓存的单个几何体进行绘制所需要的数据及偏移量
 struct SubmeshGeometry
 {
-	UINT IndexCount = 0;
-	UINT StartIndexLocation = 0;
-	INT BaseVertexLocation = 0;
+	UINT IndexCount = 0;// 索引数量
+	UINT StartIndexLocation = 0;// 全局顶点/索引缓存 中 起始索引
+	INT BaseVertexLocation = 0;// 全局顶点/索引缓存 中 基准地址
 
     // 当前子网格中所存有的 几何体包围盒
     DirectX::BoundingBox Bounds;

@@ -9,6 +9,7 @@
 #include "../Common/UploadBuffer.h"
 #include "../Common/GeometryGenerator.h"
 #include "FrameResource.h"
+#include "../Common/d3dUtil.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -93,6 +94,7 @@ private:
 
     ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
+    // 使用无序表根据名称 在常数时间内查找和引用所需的资源对象(比如 每个绘制物, PSO, 纹理, shader)
     std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
     std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
@@ -542,119 +544,111 @@ void ShapesApp::BuildShadersAndInputLayout()
 
 void ShapesApp::BuildShapeGeometry()
 {
+    /// *********************提前构造好绘制物,并提前计算好每个模型在全局顶点/索引缓存里的 偏移量
+
+    // 构造出4种模型
     GeometryGenerator geoGen;
-    GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 0.5f, 1.5f, 3);
-    GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
-    GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
-    GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
+    GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 0.5f, 1.5f, 3);// 模型box 的meshdata
+    GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);// 模型grid 的meshdata
+    GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);// 模型 sphere 的meshdata
+    GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);// 模型cylinder 的meshdata  
 
-    //
-    // We are concatenating all the geometry into one big vertex/index buffer.  So
-    // define the regions in the buffer each submesh covers.
-    //
-
-    // Cache the vertex offsets to each object in the concatenated vertex buffer.
+    // 对合并了的全局顶点缓存里每个绘制物的起始索引 进行缓存
     UINT boxVertexOffset = 0;
     UINT gridVertexOffset = (UINT)box.Vertices.size();
     UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
     UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
 
-    // Cache the starting index for each object in the concatenated index buffer.
+    // 对合并了的全局索引缓存里每个绘制物的起始索引 进行缓存
     UINT boxIndexOffset = 0;
     UINT gridIndexOffset = (UINT)box.Indices32.size();
     UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
     UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
 
-    // Define the SubmeshGeometry that cover different 
-    // regions of the vertex/index buffers.
+    /// ***********这些定义的 多个SubmeshGeometry结构体里包含有顶点/索引缓存内不同种类 模型 的子网格数据**********
 
+    // 用box模型MeshData的索引数量\起始索引\基准地址更新box子网格
     SubmeshGeometry boxSubmesh;
     boxSubmesh.IndexCount = (UINT)box.Indices32.size();
     boxSubmesh.StartIndexLocation = boxIndexOffset;
     boxSubmesh.BaseVertexLocation = boxVertexOffset;
-
+	// 用grid模型MeshData的索引数量\起始索引\基准地址更新grid子网格
     SubmeshGeometry gridSubmesh;
     gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
     gridSubmesh.StartIndexLocation = gridIndexOffset;
     gridSubmesh.BaseVertexLocation = gridVertexOffset;
-
+	// 用sphere模型MeshData的索引数量\起始索引\基准地址更新sphere子网格
     SubmeshGeometry sphereSubmesh;
     sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
     sphereSubmesh.StartIndexLocation = sphereIndexOffset;
     sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
-
+	// 用cylinder模型MeshData的索引数量\起始索引\基准地址更新cylinder子网格
     SubmeshGeometry cylinderSubmesh;
     cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
     cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
     cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
 
-    //
-    // Extract the vertex elements we are interested in and pack the
-    // vertices of all the meshes into one vertex buffer.
-    //
+    /// *****************提取出所需要的顶点元素, 再把所有绘制物的顶点装进一个全局顶点缓存区********************
 
+    // 1.构建出一个 全局顶点集(数量就是这些所有绘制物点的总和)
     auto totalVertexCount =
         box.Vertices.size() +
         grid.Vertices.size() +
         sphere.Vertices.size() +
         cylinder.Vertices.size();
-
-    std::vector<Vertex> vertices(totalVertexCount);
-
-    UINT k = 0;
+    std::vector<Vertex> vertices(totalVertexCount);// vertices是全局顶点集
+    // 2.遍历4种绘制物里 Meshdata里所有的顶点,给全局顶点集里的顶点属性插值
+    UINT k = 0;// K是全局的序数    
     for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
     {
         vertices[k].Pos = box.Vertices[i].Position;
         vertices[k].Color = XMFLOAT4(DirectX::Colors::DarkGreen);
     }
-
     for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
     {
         vertices[k].Pos = grid.Vertices[i].Position;
         vertices[k].Color = XMFLOAT4(DirectX::Colors::ForestGreen);
     }
-
     for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
     {
         vertices[k].Pos = sphere.Vertices[i].Position;
         vertices[k].Color = XMFLOAT4(DirectX::Colors::Crimson);
     }
-
     for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
     {
         vertices[k].Pos = cylinder.Vertices[i].Position;
         vertices[k].Color = XMFLOAT4(DirectX::Colors::SteelBlue);
     }
-
-    std::vector<std::uint16_t> indices;
+    // 3.遍历4种绘制物里 Meshdata里所有的索引,给全局索引集里的索引插值
+    std::vector<std::uint16_t> indices;// indices是全局索引集
     indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
     indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
     indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
     indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
+    // 4.附带计算出全局顶点\索引缓存字节大小
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);// 全局顶点缓存字节大小
+    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);// 全局索引缓存字节大小
 
-    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-
+    // 5.构建出"几何体"这种资源, 它负责管控所有子几何体, 并初始化名字"shapeGeo"
     auto geo = std::make_unique<MeshGeometry>();
     geo->Name = "shapeGeo";
 
+    // 6.1.为geo的顶点缓存这种内存数据开辟出blob内存块, 并用此前的全局顶点集作为数据源 拷贝填充到 "父级管控者"geo里去
     ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
     CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
+    // 6.2.为geo的索引缓存这种内存数据开辟出blob内存块, 并用此前的全局索引集作为数据源 拷贝填充到 "父级管控者"geo里去
     ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
     CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
+    // 7.利用工具方法创建出所有绘制物的全局顶点缓存/索引缓存 , 并设置单顶点字节偏移, 全局顶点字节大小, 索引格式, 全局索引字节大小
     geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
         mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
     geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
         mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
-
     geo->VertexByteStride = sizeof(Vertex);
     geo->VertexBufferByteSize = vbByteSize;
     geo->IndexFormat = DXGI_FORMAT_R16_UINT;
     geo->IndexBufferByteSize = ibByteSize;
-
+    // 8.几何体里哈希表 依据名字而对应的"子几何体" 被各自填充
     geo->DrawArgs["box"] = boxSubmesh;
     geo->DrawArgs["grid"] = gridSubmesh;
     geo->DrawArgs["sphere"] = sphereSubmesh;

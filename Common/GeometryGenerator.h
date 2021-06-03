@@ -60,8 +60,8 @@ public:
 	/* MeshData是一个嵌套在GeometryGenerator类里用于存储顶点\索引表的简易结构体*/
 	struct MeshData
 	{
-		std::vector<Vertex> Vertices;
-        std::vector<uint32> Indices32;
+		std::vector<Vertex> Vertices;// MeshData结构体里的 顶点数组
+        std::vector<uint32> Indices32;// MeshData结构体里的 索引数组
 
         std::vector<uint16>& GetIndices16()
         {
