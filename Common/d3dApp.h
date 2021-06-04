@@ -136,7 +136,7 @@ protected:
 
 	UINT mRtvDescriptorSize = 0;
 	UINT mDsvDescriptorSize = 0;
-	UINT mCbvSrvUavDescriptorSize = 0;
+	UINT mCbvSrvUavDescriptorSize = 0;// 视图堆中邻接CBV增量大小
 
 	// 用户应在D3DApp的子类的子类构造器里自定义这些初始值
 	std::wstring mMainWndCaption = L"d3d App";

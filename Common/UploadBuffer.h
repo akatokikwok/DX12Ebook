@@ -53,7 +53,7 @@ public:
         mMappedData = nullptr;
     }
 
-    /* 此方法拿上床资源的裸指针*/
+    /* 此方法拿上传资源(比如常数缓存)的裸指针*/
     ID3D12Resource* Resource()const
     {
         return mUploadBuffer.Get();

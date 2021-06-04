@@ -155,7 +155,7 @@ public:
     int LineNumber = -1;
 };
 
-/// 此结构体提供了对于 同时存有顶点缓存和索引缓存的单个几何体进行绘制所需要的数据及偏移量
+/// 子几何体 由父级MeshGeometry持有
 struct SubmeshGeometry
 {
 	UINT IndexCount = 0;// 索引数量
