@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chapter6", "Chapter6\Chapte
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "7_Shapes", "7_Shapes\7_Shapes.vcxproj", "{9C6D5C14-62AF-4274-A0DE-F67720224AC6}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "7_LandAndWaves", "7_LandAndWaves\7_LandAndWaves.vcxproj", "{377D3862-2C9C-49AD-9C99-E5D238FCEC38}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -41,6 +43,14 @@ Global
 		{9C6D5C14-62AF-4274-A0DE-F67720224AC6}.Release|x64.Build.0 = Release|x64
 		{9C6D5C14-62AF-4274-A0DE-F67720224AC6}.Release|x86.ActiveCfg = Release|Win32
 		{9C6D5C14-62AF-4274-A0DE-F67720224AC6}.Release|x86.Build.0 = Release|Win32
+		{377D3862-2C9C-49AD-9C99-E5D238FCEC38}.Debug|x64.ActiveCfg = Debug|x64
+		{377D3862-2C9C-49AD-9C99-E5D238FCEC38}.Debug|x64.Build.0 = Debug|x64
+		{377D3862-2C9C-49AD-9C99-E5D238FCEC38}.Debug|x86.ActiveCfg = Debug|Win32
+		{377D3862-2C9C-49AD-9C99-E5D238FCEC38}.Debug|x86.Build.0 = Debug|Win32
+		{377D3862-2C9C-49AD-9C99-E5D238FCEC38}.Release|x64.ActiveCfg = Release|x64
+		{377D3862-2C9C-49AD-9C99-E5D238FCEC38}.Release|x64.Build.0 = Release|x64
+		{377D3862-2C9C-49AD-9C99-E5D238FCEC38}.Release|x86.ActiveCfg = Release|Win32
+		{377D3862-2C9C-49AD-9C99-E5D238FCEC38}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
