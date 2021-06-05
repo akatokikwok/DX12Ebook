@@ -99,7 +99,7 @@ private:
 
     PassConstants mMainPassCB;// PassConstants型常数缓存实例
 
-    UINT mPassCbvOffset = 0;// "渲染过程"(PassCB)的起始偏移量
+    UINT mPassCbvOffset = 0;// "渲染过程"(PassCB)的视图起始偏移量
 
     bool mIsWireframe = false;// 线框模式
 
@@ -148,29 +148,38 @@ ShapesApp::~ShapesApp()
         FlushCommandQueue();
 }
 
+/// 为渲染程序编写初始化代码,例如分配资源,初始化对象和建立3D场景
 bool ShapesApp::Initialize()
 {
+    // 先检查并执行基类的Initialize
     if (!D3DApp::Initialize())
         return false;
 
-    // Reset the command list to prep for initialization commands.
+    // !!!!记得重置命令列表,复用内存, 为初始化命令做好准备
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
-
+    // 1.1 利用根参数(选型为描述符表),创建根签名
     BuildRootSignature();
+    // 1.2 编译HLSL shader且初始化输入布局
     BuildShadersAndInputLayout();
+    // 1.3 创建几何体缓存, 缓存绘制所需参数, 以及绘制物体的具体过程
     BuildShapeGeometry();
+    // 1.4 构建各种几何体的渲染项, 并存到渲染项总集
     BuildRenderItems();
+    // 1.5 构建3个FrameResource, 其中passCount为1, objCount为渲染项个数
     BuildFrameResources();
+    // 1.6 构建CBV用来存储(若有3个帧资源, n个渲染项), 创建出3(n+1)个CBV, 且创建出常数缓存视图堆
     BuildDescriptorHeaps();
+    // 1.7 为3n+1个描述符创建出 "物体CBV" 和 "渲染过程CBV"
     BuildConstantBufferViews();
+    // 1.8 创建2种管线状态
     BuildPSOs();
 
-    // Execute the initialization commands.
+    // 上面代码都是记录命令,此处开始关闭上述的命令列表的记录,在队列中执行命令
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-    // Wait until initialization is complete.
+    // 同步强制CPU等待GPU操作,刷新队列,等待GPU处理完所有事(使用了围栏技术)
     FlushCommandQueue();
 
     return true;
@@ -180,7 +189,7 @@ void ShapesApp::OnResize()
 {
     D3DApp::OnResize();
 
-    // The window resized, so update the aspect ratio and recompute the projection matrix.
+    // 检查用户是不是重新调整了窗口尺寸,更新宽高比并重新计算投影矩阵
     XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
     XMStoreFloat4x4(&mProj, P);
 }
@@ -215,11 +224,11 @@ void ShapesApp::Draw(const GameTimer& gt)
 {
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;// 当前帧资源里的命令分配器
 
-	// Reset分配器, 复用记录命令所用的内存
+	// 1.1 Reset分配器, 复用记录命令所用的内存
 	// 注意!! 只有当GPU中所有的命令列表都执行完, 才可以重置分配器
     ThrowIfFailed(cmdListAlloc->Reset());
 
-	// 当利用函数ExecuteCommandList把列表都加入队列之后,就可以重置列表
+	// 1.2 当利用函数ExecuteCommandList把列表都加入队列之后,就可以重置列表
 	// 复用命令列表内存(需要分配器和PSO)
     if (mIsWireframe)
     {
@@ -230,49 +239,54 @@ void ShapesApp::Draw(const GameTimer& gt)
         ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
     }
     
-    // 设置视口和裁剪矩形
+    // 1.3 设置视口和裁剪矩形
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-    // Indicate a state transition on the resource usage.
+    // 2. 依据资源的使用用途 指示其状态切换,此处把资源(后台缓存)从呈现切换为渲染目标状态
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
         D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-    // Clear the back buffer and depth buffer.
+    // 3.1 清除后台缓存(渲染目标) 和 深度缓存
     mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
     mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-    // Specify the buffers we are going to render to.
+    // 3.2 在管线上设置 欲渲染的目标缓存区(此处是后台缓存), 需要两个视图(RTV和DSV)的句柄(偏移查找出来)
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-
+	
+    // 4. mCBVGHeap存成一个描述符数组 并在命令列表上设置 CBuffer视图堆
     ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
     mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
+    // 4.1 命令列表设置根签名
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-    int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
+    // 4.2 偏移全部的CBUFFER视图堆里的 渲染过程CBV
+    // 在命令列表里设置 DescriptorTable
+    int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;// 渲染过程CBV索引等于 mPassCBVOffset + 当前帧序数
     auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
     passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
-    mCommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);
+    mCommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);// 在命令列表里设置 DescriptorTable(需要具体的cbv句柄)
 
+    // 4.3 绘制所有已经成功加工过的渲染项, 指定要渲染的目标缓存
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
-    // Indicate a state transition on the resource usage.
+    // 5. 切换资源从渲染目标切换为呈现状态
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
         D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
-    // Done recording commands.
+    //6. 结束命令记录
     ThrowIfFailed(mCommandList->Close());
 
-    // Add the command list to the queue for execution.
+    // 7. 组建命令列表数组并添加到队列真正执行命令
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-    // Swap the back and front buffers
+    // 8. 交换交换链里前后台呈现图像
     ThrowIfFailed(mSwapChain->Present(0, 0));
     mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
-    // !!!增加围栏值, 把命令标记到围栏点
+    // !!!增加帧资源里的围栏值, 把命令标记到围栏点
     mCurrFrameResource->Fence = ++D3DApp::mCurrentFence;
 
     // 向命令队列添加一条指令专门用来设置一个新的围栏点
@@ -413,7 +427,7 @@ void ShapesApp::BuildDescriptorHeaps()
 {
     UINT objCount = (UINT)mOpaqueRitems.size();// 所有的渲染项数量    
     UINT numDescriptors = (objCount + 1) * gNumFrameResources;// 总CBV数量等于 (渲染项数量 +1 ) * 帧资源个数
-    mPassCbvOffset = objCount * gNumFrameResources;// 保存渲染过程(即PASSCB这种CBUFFER)的起始偏移量
+    mPassCbvOffset = objCount * gNumFrameResources;// !!!!保存渲染过程(即PASSCB这种CBUFFER)的起始偏移量
     // 填充cbvHeapDesc
     D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
     cbvHeapDesc.NumDescriptors = numDescriptors;
@@ -524,6 +538,7 @@ void ShapesApp::BuildRootSignature()
         IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
+/// 编译shader且初始化输入布局
 void ShapesApp::BuildShadersAndInputLayout()
 {
     mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_1");
@@ -541,7 +556,7 @@ void ShapesApp::BuildShapeGeometry()
 {
     /// *********************提前构造好绘制物,并提前计算好每个模型在全局顶点/索引缓存里的 偏移量
 
-    // 构造出4种模型
+    // 1. 先用GemometryGenerator里的算法 构造出4种模型MeshData
     GeometryGenerator geoGen;
     GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 0.5f, 1.5f, 3);// 模型box 的meshdata
     GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);// 模型grid 的meshdata
@@ -556,11 +571,13 @@ void ShapesApp::BuildShapeGeometry()
 
     // 对合并了的全局索引缓存里每个绘制物的起始索引 进行缓存
     UINT boxIndexOffset = 0;
-    UINT gridIndexOffset = (UINT)box.Indices32.size();
+    UINT gridIndexOffset = boxIndexOffset + (UINT)box.Indices32.size();
     UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
     UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
 
     /// ***********这些定义的 多个SubmeshGeometry结构体里包含有顶点/索引缓存内不同种类 模型 的子网格数据**********
+
+    // 2. 填充4种子几何体的索引数, 起始索引, 基准地址
 
     // 用box模型MeshData的索引数量\起始索引\基准地址更新box子网格
     SubmeshGeometry boxSubmesh;
@@ -585,14 +602,14 @@ void ShapesApp::BuildShapeGeometry()
 
     /// *****************提取出所需要的顶点元素, 再把所有绘制物的顶点装进一个全局顶点缓存区********************
 
-    // 1.构建出一个 全局顶点集(数量就是这些所有绘制物点的总和)
+    // 3. 构建出一个 全局顶点集(数量就是这些所有绘制物点的总和)
     auto totalVertexCount =
         box.Vertices.size() +
         grid.Vertices.size() +
         sphere.Vertices.size() +
         cylinder.Vertices.size();
     std::vector<Vertex> vertices(totalVertexCount);// vertices是全局顶点集
-    // 2.遍历4种绘制物里 Meshdata里所有的顶点,给全局顶点集里的顶点属性插值
+    // 4.1 遍历4种绘制物里 Meshdata里所有的顶点,给全局顶点集里的顶点属性插值
     UINT k = 0;// K是全局的序数    
     for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
     {
@@ -614,13 +631,13 @@ void ShapesApp::BuildShapeGeometry()
         vertices[k].Pos = cylinder.Vertices[i].Position;
         vertices[k].Color = XMFLOAT4(DirectX::Colors::SteelBlue);
     }
-    // 3.遍历4种绘制物里 Meshdata里所有的索引,给全局索引集里的索引插值
+    // 4.2. 遍历4种绘制物里 Meshdata里所有的索引,给全局索引集里的索引插值
     std::vector<std::uint16_t> indices;// indices是全局索引集
     indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
     indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
     indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
     indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
-    // 4.附带计算出全局顶点\索引缓存字节大小
+    // 4.3 附带计算出全局顶点\索引缓存字节大小
     const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);// 全局顶点缓存字节大小
     const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);// 全局索引缓存字节大小
 
@@ -634,21 +651,23 @@ void ShapesApp::BuildShapeGeometry()
     // 6.2.为geo的索引缓存这种内存数据开辟出blob内存块, 并用此前的全局索引集作为数据源 拷贝填充到 "父级管控者"geo里去
     ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
     CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-    // 7.利用工具方法创建出所有绘制物的全局顶点缓存/索引缓存 , 并设置单顶点字节偏移, 全局顶点字节大小, 索引格式, 全局索引字节大小
+    // 7.1 利用工具方法创建出几何体的全局顶点缓存/索引缓存 , 并设置单顶点字节偏移, 全局顶点字节大小, 索引格式, 全局索引字节大小
     geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader
+    );
     geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader
+    );
     geo->VertexByteStride = sizeof(Vertex);
     geo->VertexBufferByteSize = vbByteSize;
     geo->IndexFormat = DXGI_FORMAT_R16_UINT;
     geo->IndexBufferByteSize = ibByteSize;
-    // 8.几何体里哈希表 依据名字而对应的"子几何体" 被各自填充
+    // 7.2 几何体里哈希表 依据名字而对应的"子几何体" 被各自填充
     geo->DrawArgs["box"] = boxSubmesh;
     geo->DrawArgs["grid"] = gridSubmesh;
     geo->DrawArgs["sphere"] = sphereSubmesh;
     geo->DrawArgs["cylinder"] = cylinderSubmesh;
-
+    // 8. 转移geo几何体资源数据 到 绘制物无序表
     mGeometries[geo->Name] = std::move(geo);// 渲染程序类里的"几何体无序表" 接受 geo的资源转移
 }
 
@@ -700,8 +719,8 @@ void ShapesApp::BuildFrameResources()
 {
     for (int i = 0; i < gNumFrameResources; ++i)
     {
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-            1, (UINT)mAllRitems.size())
+        mFrameResources.push_back(
+            std::make_unique<FrameResource>(md3dDevice.Get(), 1, (UINT)mAllRitems.size())
         );
     }
 }
@@ -794,7 +813,7 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));// 单物体CB字节大小
     auto objectCB = mCurrFrameResource->ObjectCB->Resource();// 当前在使用的帧资源里 的 "物体CB"
 
-    // 遍历每个外部渲染项,
+    // 遍历每个外部渲染项
     for (size_t i = 0; i < ritems.size(); ++i)
     {
         auto ri = ritems[i];//第i个外部渲染项
@@ -802,12 +821,14 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
         cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());// 设置管线索引缓存(需要几何体内部索引缓存视图)
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);// 设置图元
 
+        // 偏移到此帧里渲染项中的CBV视图
         // 为了绘制此前帧资源 及 当前物体, 需要偏移至 视图堆中对应的CBV
         UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;//CBV索引 == 帧资源序数*渲染项个数 + 第i个渲染项内部的第几号缓存
         auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());// 拿到全局视图堆句柄
         cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);// 偏移到堆中指定 CBV序数的 CBV
 
-        cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);// 设置管线上的CBV
+        // 设定此帧绘制调用所需描述符(借助偏移的CBV句柄)
+        cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
 
         // 对于第i个外部渲染项, 就要绘制 一次 ,执行DrawIndexedInstanced指令
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
