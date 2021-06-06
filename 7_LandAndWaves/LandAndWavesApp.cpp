@@ -494,23 +494,26 @@ void LandAndWavesApp::BuildShadersAndInputLayout()
     };
 }
 
+/// 待栅格Geometry创建后, 可以从MeshData里获取所需顶点, 根据顶点的高度(即y坐标)把平坦的栅格变为表现山峰起伏的曲面
 void LandAndWavesApp::BuildLandGeometry()
 {
 	GeometryGenerator geoGen;
+	// 先初始化一个栅格MeshData grid
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
 
 	//
-	// Extract the vertex elements we are interested and apply the height function to
-	// each vertex.  In addition, color the vertices based on their height so we have
-	// sandy looking beaches, grassy low hills, and snow mountain peaks.
+	// 获取我们所需顶点,并利用高度函数计算每个点的高度值
+	// 点的颜色取决于它的高度,因此,最后的图像才看似如砂质的沙滩,山峰低处的植被和山峰处的积雪
 	//
 
+	// 开辟出一个山峰顶点集<Vertex型>, 大小为"此前grid里的所有顶点"
 	std::vector<Vertex> vertices(grid.Vertices.size());
+
 	for(size_t i = 0; i < grid.Vertices.size(); ++i)
 	{
-		auto& p = grid.Vertices[i].Position;
-		vertices[i].Pos = p;
-		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
+		auto& p = grid.Vertices[i].Position;// 拿到grid第i个点的位置
+		vertices[i].Pos = p;// 更新山峰第i个顶点的位置
+		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);// 单独更新山峰第i个点的高度值
 
         // Color the vertex based on its height.
         if(vertices[i].Pos.y < -10.0f)

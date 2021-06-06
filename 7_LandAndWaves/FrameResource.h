@@ -27,6 +27,7 @@ struct PassConstants
     float DeltaTime = 0.0f;
 };
 
+// 绘制山峰的顶点结构体型
 struct Vertex
 {
     DirectX::XMFLOAT3 Pos;

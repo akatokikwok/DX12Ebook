@@ -28,7 +28,7 @@ public:
     using uint16 = std::uint16_t;
     using uint32 = std::uint32_t;
 
-	/* 顶点结构体, 带有Postion, Normal, Tangent, uv等构造器*/
+	/* GeometryGenerator::Vertex型 结构体, 带有Postion, Normal, Tangent, uv等构造器*/
 	struct Vertex
 	{
 		Vertex(){}
@@ -57,7 +57,10 @@ public:
         DirectX::XMFLOAT2 TexC;
 	};
 
-	/* MeshData是一个嵌套在GeometryGenerator类里用于存储顶点\索引表的简易结构体*/
+	/* MeshData是一个嵌套在GeometryGenerator类里用于存储顶点\索引表的简易结构体 
+	* MeshData结构体存有顶点数组\索引数组
+	* 此结构体通常被拿来构造 模型几何体
+	*/
 	struct MeshData
 	{
 		std::vector<Vertex> Vertices;// MeshData结构体里的 顶点数组
@@ -104,6 +107,8 @@ public:
 	///<summary>
 	/// Creates an mxn grid in the xz-plane with m rows and n columns, centered
 	/// at the origin with the specified width and depth.
+	/// 创建栅格,用来绘制水波荡漾
+	/// 待栅格创建后,可以从MeshData里获取所需顶点, 根据顶点的高度(即y坐标)把平坦的栅格变为表现山峰起伏的曲面
 	///</summary>
     MeshData CreateGrid(float width, float depth, uint32 m, uint32 n);
 

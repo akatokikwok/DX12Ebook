@@ -555,6 +555,13 @@ void GeometryGenerator::BuildCylinderBottomCap(float bottomRadius, float topRadi
 
 GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float depth, uint32 m, uint32 n)
 {
+	/// 原理介绍: 首先在xz平面内铺设一层栅格,再运用f(x,z)为每个栅格点获取其对应的y坐标
+	/// m x n 个点所构成的栅格具备 (m-1) * (n-1)个四边形,共 2(m-1)(n-1)个三角形
+	/// 若栅格宽w深度为d, 则每个四边形在x轴与z轴上的间距分别为
+	/// dx = w / (n-1) ; dz= d / (m-1)
+	/// 在xz平面里 第i行 第j列栅格点坐标为
+	/// Vij = [-0.5w + j * dx, 0.0, 0.5d - i * dz]
+
     MeshData meshData;
 
 	uint32 vertexCount = m*n;
@@ -585,19 +592,19 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float dep
 			meshData.Vertices[i*n+j].Normal   = XMFLOAT3(0.0f, 1.0f, 0.0f);
 			meshData.Vertices[i*n+j].TangentU = XMFLOAT3(1.0f, 0.0f, 0.0f);
 
-			// Stretch texture over grid.
+			// 在栅格上拉伸纹理
 			meshData.Vertices[i*n+j].TexC.x = j*du;
 			meshData.Vertices[i*n+j].TexC.y = i*dv;
 		}
 	}
  
     //
-	// Create the indices.
+	// 对于一个规模为m * n顶点的栅格来说,四边形中的2个三角形的线性数组索引计算方式如下
 	//
 
-	meshData.Indices32.resize(faceCount*3); // 3 indices per face
+	meshData.Indices32.resize(faceCount*3); // 单三角面有3个索引
 
-	// Iterate over each quad and compute indices.
+	// 遍历每个四边形并计算索引
 	uint32 k = 0;
 	for(uint32 i = 0; i < m-1; ++i)
 	{
@@ -611,7 +618,7 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float dep
 			meshData.Indices32[k+4] = i*n+j+1;
 			meshData.Indices32[k+5] = (i+1)*n+j+1;
 
-			k += 6; // next quad
+			k += 6; // 下一个四边形
 		}
 	}
 
