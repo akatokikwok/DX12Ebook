@@ -66,6 +66,7 @@ public:
 		std::vector<Vertex> Vertices;// MeshData结构体里的 顶点数组
         std::vector<uint32> Indices32;// MeshData结构体里的 索引数组
 
+		/* 构建1个uint16型的索引数组*/
         std::vector<uint16>& GetIndices16()
         {
 			if(mIndices16.empty())

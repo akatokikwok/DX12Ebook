@@ -194,7 +194,7 @@ struct MeshGeometry
     /// 使用下列无序map就可以定义subMeshGeometry几何体, 并允许单独地绘制出其中的子网格(即单个几何体)
     std::unordered_map<std::string, SubmeshGeometry> DrawArgs;
 
-    /* 利用类成员数据返回一个顶点缓存视图*/
+    /* 利用几何体类成员数据返回一个顶点缓存视图*/
 	D3D12_VERTEX_BUFFER_VIEW VertexBufferView()const
 	{
 		D3D12_VERTEX_BUFFER_VIEW vbv;
@@ -205,7 +205,7 @@ struct MeshGeometry
 		return vbv;
 	}
 
-    /* 利用类成员数据返回一个索引缓存视图*/
+    /* 利用几何体类成员数据返回一个索引缓存视图*/
 	D3D12_INDEX_BUFFER_VIEW IndexBufferView()const
 	{
 		D3D12_INDEX_BUFFER_VIEW ibv;

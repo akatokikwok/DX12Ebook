@@ -35,6 +35,7 @@ struct RenderItem
 	int NumFramesDirty = gNumFrameResources;
 
 	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
+	// 第几个缓存区
 	UINT ObjCBIndex = -1;
 
 	MeshGeometry* Geo = nullptr;
@@ -86,10 +87,11 @@ private:
     void BuildPSOs();
     void BuildFrameResources();
     void BuildRenderItems();
-	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
+	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);	
 
-    float GetHillsHeight(float x, float z)const;
     XMFLOAT3 GetHillsNormal(float x, float z)const;
+	/* 山坡演示程序里使用的 计算高度函数f(x, z)*/
+	float GetHillsHeight(float x, float z)const;
 
 private:
 
@@ -267,10 +269,16 @@ void LandAndWavesApp::Draw(const GameTimer& gt)
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-    // Bind per-pass constant buffer.  We only need to do this once per-pass.
-	auto passCB = mCurrFrameResource->PassCB->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+    // !!这里与以往的技术不一样!
+	// 绑定"渲染过程"所用的常数缓存,在每个"渲染过程"里,这段代码只需要执行一次
+	// SetGraphicsRootConstantBufferView函数 以传递参数形式把CBV和某个root descriptor相绑定
+	auto passCB = mCurrFrameResource->PassCB->Resource();//拿到渲染过程裸指针
+	mCommandList->SetGraphicsRootConstantBufferView(
+		1,/*位于shader中的槽位*/ 
+		passCB->GetGPUVirtualAddress()/*常数缓存的虚拟地址*/
+	);
 
+	// 按给定的渲染项集 以索引进行绘制
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
 	// Indicate a state transition on the resource usage.
@@ -453,21 +461,27 @@ void LandAndWavesApp::UpdateWaves(const GameTimer& gt)
 
 void LandAndWavesApp::BuildRootSignature()
 {
+	/// 不再使用此前提到过的描述符表,而是改用2个根描述符
+
     // Root parameter can be a table, root descriptor or root constants.
     CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
-    // Create root CBV.
-    slotRootParameter[0].InitAsConstantBufferView(0);
-    slotRootParameter[1].InitAsConstantBufferView(1);
+    // 根参数选型为根描述符, 所以此处直接创建root CBV
+	// 指定此根参数将要绑定的shader寄存器,分别为b0 和 b1
+    slotRootParameter[0].InitAsConstantBufferView(0);// 物体的CBV
+    slotRootParameter[1].InitAsConstantBufferView(1);// 渲染过程CBV
 
-    // A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+    // 利用异体构造器, 根签名即是一系列根参数的组合
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
+		2, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+	);
 
     // create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
     ComPtr<ID3DBlob> errorBlob = nullptr;
     HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
-        serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+        serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf()
+	);
 
     if(errorBlob != nullptr)
     {
@@ -497,8 +511,9 @@ void LandAndWavesApp::BuildShadersAndInputLayout()
 /// 待栅格Geometry创建后, 可以从MeshData里获取所需顶点, 根据顶点的高度(即y坐标)把平坦的栅格变为表现山峰起伏的曲面
 void LandAndWavesApp::BuildLandGeometry()
 {
-	GeometryGenerator geoGen;
 	// 先初始化一个栅格MeshData grid
+	// 目的是给别人提供几何体生成器里内部那些点的meshdata
+	GeometryGenerator geoGen;	
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
 
 	//
@@ -509,72 +524,87 @@ void LandAndWavesApp::BuildLandGeometry()
 	// 开辟出一个山峰顶点集<Vertex型>, 大小为"此前grid里的所有顶点"
 	std::vector<Vertex> vertices(grid.Vertices.size());
 
+	// 给山峰顶点集做值(填色,填位置)
 	for(size_t i = 0; i < grid.Vertices.size(); ++i)
 	{
 		auto& p = grid.Vertices[i].Position;// 拿到grid第i个点的位置
 		vertices[i].Pos = p;// 更新山峰第i个顶点的位置
 		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);// 单独更新山峰第i个点的高度值
 
-        // Color the vertex based on its height.
+        // 基于顶点高度来给点上色(从山脚到山顶逐渐变色)
         if(vertices[i].Pos.y < -10.0f)
         {
-            // Sandy beach color.
+            // 沙滩黄色
             vertices[i].Color = XMFLOAT4(1.0f, 0.96f, 0.62f, 1.0f);
         }
         else if(vertices[i].Pos.y < 5.0f)
         {
-            // Light yellow-green.
+            // 浅黄绿色
             vertices[i].Color = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
         }
         else if(vertices[i].Pos.y < 12.0f)
         {
-            // Dark yellow-green.
+            // 深黄绿色
             vertices[i].Color = XMFLOAT4(0.1f, 0.48f, 0.19f, 1.0f);
         }
         else if(vertices[i].Pos.y < 20.0f)
         {
-            // Dark brown.
+            // 深棕色
             vertices[i].Color = XMFLOAT4(0.45f, 0.39f, 0.34f, 1.0f);
         }
         else
         {
-            // White snow.
+            // 白雪皑皑
             vertices[i].Color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
         }
 	}
-    
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	// 结束了for之后, 此时山峰顶点集已经被初始化,有值了,前面都是为 vertices山峰顶点集做值
 
+
+	// 顶点缓存字节数 == 山体点数 * 单山体点字节
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+	// 索引缓存字节数 == 索引数 * 单索引字节
+	// 同时也为山峰索引集做值
 	std::vector<std::uint16_t> indices = grid.GetIndices16();
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
+	// 构造1个几何体 geo,并起名为 landGeo
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "landGeo";
 
+	// 为cpu端的geo几何体顶点缓存开辟顶点Blob内存 
+	// 把山峰顶点集数据拷贝到几何体geo的cpu端去
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
 	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
+	// 为cpu端的geo几何体索引缓存开辟顶点Blob内存 
+	// 把山峰索引集数据拷贝到几何体geo的cpu端去
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
 	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
+	// 利用助手方法d3dUtil::CreateDefaultBuffer
+	// 分别创建出GPU端顶点缓存,索引缓存
 	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader
+	);
 	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader
+	);
 
+	// 填充geo的各项属性(单顶点字节偏移, 总顶点字节, 索引格式, 总索引字节)
 	geo->VertexByteStride = sizeof(Vertex);
 	geo->VertexBufferByteSize = vbByteSize;
 	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
+	// 子几何体各项属性值 初始化
 	SubmeshGeometry submesh;
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
-
+	// 子几何体被附着到几何体的无序表里
 	geo->DrawArgs["grid"] = submesh;
 
+	// 截止此行,做好的几何体geo的数据被转移到 全局表mGeometries里
 	mGeometries["landGeo"] = std::move(geo);
 }
 
@@ -716,24 +746,30 @@ void LandAndWavesApp::BuildRenderItems()
 
 void LandAndWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
+	// 单 物体常数 字节(255归一化)
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
+	// 取得 物体常数缓存裸指针
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
 
-	// For each render item...
+	// 对于每个指定的渲染项而言,需要作出调整
 	for(size_t i = 0; i < ritems.size(); ++i)
 	{
-		auto ri = ritems[i];
+		auto ri = ritems[i];// 第i个渲染项
 
-		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
-		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
-		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());//设置渲染项里的几何体里的顶点视图到管线
+		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());//设置渲染项里的几何体里的索引视图到管线
+		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);//设置渲染项里的图元类型到管线
 
+		// 先拿到 物体常数的 虚拟地址
+		// 把虚拟地址 偏移到 渲染项里缓存区序号 * 单物体常数字节
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress();
         objCBAddress += ri->ObjCBIndex*objCBByteSize;
 
+		// SetGraphicsRootConstantBufferView函数 以传递参数形式把CBV和某个root descriptor相绑定
 		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
+		// 按渲染项绘制
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
 }
