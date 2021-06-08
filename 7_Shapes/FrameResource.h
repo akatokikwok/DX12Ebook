@@ -31,6 +31,7 @@ struct PassConstants
 	float DeltaTime = 0.0f;
 };
 
+// 帧资源中的顶点型,供给给Shapes用
 struct Vertex
 {
 	DirectX::XMFLOAT3 Pos;

@@ -4,6 +4,7 @@
 // Hold down '1' key to view scene in wireframe mode.
 //***************************************************************************************
 
+#include <iostream>
 #include "../Common/d3dApp.h"
 #include "../Common/MathHelper.h"
 #include "../Common/UploadBuffer.h"
@@ -75,6 +76,8 @@ private:
     void BuildRenderItems();
     void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
 
+    /* 习题:绘制骷髅头*/
+    void BuildSkullGeometry();
 private:
 
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;// 帧资源集
@@ -163,6 +166,9 @@ bool ShapesApp::Initialize()
     BuildShadersAndInputLayout();
     // 1.3 创建几何体缓存, 缓存绘制所需参数, 以及绘制物体的具体过程
     BuildShapeGeometry();
+
+    BuildSkullGeometry();
+
     // 1.4 构建各种几何体的渲染项, 并存到渲染项总集
     BuildRenderItems();
     // 1.5 构建3个FrameResource, 其中passCount为1, objCount为渲染项个数
@@ -671,6 +677,89 @@ void ShapesApp::BuildShapeGeometry()
     mGeometries[geo->Name] = std::move(geo);// 渲染程序类里的"几何体无序表" 接受 geo的资源转移
 }
 
+/// 绘制骷髅头
+void ShapesApp::BuildSkullGeometry()
+{
+    /* 1. 读取硬盘里 模型的具体文件*/
+	std::ifstream fin("Models/skull.txt");
+	if (!fin)//如果读取失败则弹框警告
+	{
+		MessageBox(0, L"Models/skull.txt not found", 0, 0);
+        std::cout << "meizhaodao!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+		return;
+	}
+    /* 2. 读取文件里的内容,这里是读取顶点及索引*/
+	UINT vertexCount = 0;
+	UINT triangleCount = 0;
+	std::string ignore;
+	fin >> ignore >> vertexCount;//读取vertexCount并赋值
+	fin >> ignore >> triangleCount;//读取triangleCount并赋值
+	fin >> ignore >> ignore >> ignore >> ignore;//整行不读
+    /* 2.1 初始化模型的顶点列表, 元素个数为文件里读取出的个数*/
+	std::vector<Vertex> vertices(vertexCount);// 初始化顶点列表
+	/* 2.1.1 顶点列表赋值*/    
+	for (UINT i = 0; i < vertexCount; i++)
+	{
+		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;//读取顶点坐标
+		fin >> ignore >> ignore >> ignore;//normal不读取
+		vertices[i].Color = XMFLOAT4(DirectX::Colors::PaleVioletRed);//设置顶点色
+	}
+    /* 文件中字符串的第四位至第六位由于都是法线,此处不读它*/
+	fin >> ignore;
+	fin >> ignore;
+	fin >> ignore;
+    /* 2.2 初始化索引列表*/
+	std::vector<std::uint32_t> indices32(triangleCount * 3);
+	//索引列表赋值
+	for (UINT i = 0; i < triangleCount; i++)
+	{
+		fin >> indices32[i * 3 + 0] >> indices32[i * 3 + 1] >> indices32[i * 3 + 2];
+	}
+
+	fin.close();//关闭输入流
+    
+    /* 拿到 顶点\索引列表 2种缓存的大小*/
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);// 顶点缓存大小
+	const UINT ibByteSize = (UINT)indices32.size() * sizeof(std::uint32_t);// 索引缓存大小 (!注意这里是uint32_t)
+
+    /* 3.0 构建出"几何体"这种资源, 它负责管控所有子几何体, 并初始化名字"skullGeo", 即所有的渲染项共用1个MeshGeometry*/
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "skullGeo";
+
+	/* 3.1 将顶点和索引数据复制到 几何体geo的CPU系统内存上*/
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices32.data(), ibByteSize);
+
+	/* 3.2 将顶点和索引数据从CPU内存复制到GPU缓存上*/
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader
+    );
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices32.data(), ibByteSize, geo->IndexBufferUploader
+    );
+    /* 3.3 设置被填充好数据的几何体geo的一些属性 单顶点字节偏移, 全局顶点字节大小, 索引格式, 全局索引字节大小*/
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexBufferByteSize = ibByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+
+	/* 3.4 声明骷髅几何体的子mesh, 此子mesh用以填充几何体的无序表<string, SubGeometry>
+    * 用骷髅模型MeshData的索引数量\起始索引\基准地址更新box子网格*/
+    UINT skullVertexOffset = 0;
+    UINT skullIndexOffset = 0;
+
+	SubmeshGeometry skullSubmesh;
+	skullSubmesh.BaseVertexLocation = skullVertexOffset;
+	skullSubmesh.StartIndexLocation = skullIndexOffset;
+	skullSubmesh.IndexCount = (UINT)indices32.size();
+	// 4.0 几何体里哈希表 依据名字而对应的"子几何体" 被各自填充	
+	geo->DrawArgs["skull"] = skullSubmesh;
+    // 4.1 转移geo几何体资源数据 到 绘制物无序表
+	mGeometries[geo->Name] = std::move(geo);
+}
+
 void ShapesApp::BuildPSOs()
 {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
@@ -738,7 +827,10 @@ void ShapesApp::BuildRenderItems()
     boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;// box渲染项索引数量设置为 子几何体"box"的起始索引
     boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;// box渲染项索引数量设置为 子几何体"box"的基准地址
     mAllRitems.push_back(std::move(boxRitem));// 把box渲染项存到 总渲染项里
-    // 1.2 构建gridx子几何体的渲染项并存到渲染项总集里
+    
+    
+                                              
+    // 1.2 构建gridx子几何体的渲染项并存到渲染项总集里    
     auto gridRitem = std::make_unique<RenderItem>();
     gridRitem->World = MathHelper::Identity4x4();
     gridRitem->ObjCBIndex = 1;
@@ -749,8 +841,25 @@ void ShapesApp::BuildRenderItems()
     gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
     mAllRitems.push_back(std::move(gridRitem));
 
+	/* 1.3 骷髅头的渲染项*/
+	auto skullRitem = std::make_unique<RenderItem>();
+    //skullRitem->World = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&skullRitem->World, XMMatrixScaling(1.0f, 1.0f, 1.0f) * XMMatrixTranslation(0.0f, 1.0f, 10.0f));// 设置位置和缩放
+	skullRitem->ObjCBIndex = 2;//skull常量数据（world矩阵）在objConstantBuffer索引1上
+    skullRitem->Geo = mGeometries["skullGeo"].get();
+	skullRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;	
+	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
+	skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
+	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
+	mAllRitems.push_back(std::move(skullRitem));
+
+
+
+
+
     // 1.3 分别构建左边4个球体/柱体, 右边4个球体/柱体的渲染项,并加到渲染项总集
-    UINT objCBIndex = 2;// 此前有2种模型(box,grid了),故把索引数量设置为2
+    //UINT objCBIndex = 2;// 此前有2种模型(box,grid了),故把索引数量设置为2
+    UINT objCBIndex = 3;
     for (int i = 0; i < 5; ++i)
     {
         auto leftCylRitem = std::make_unique<RenderItem>();
@@ -802,6 +911,9 @@ void ShapesApp::BuildRenderItems()
         mAllRitems.push_back(std::move(rightSphereRitem));
     }
 
+   
+
+
     // 把渲染项总集里的所有渲染项都添加到非透明渲染项集合里(演示程序里所有渲染项先默认是非透明)
     for (auto& e : mAllRitems)
         mOpaqueRitems.push_back(e.get());
@@ -834,3 +946,5 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
 }
+
+
