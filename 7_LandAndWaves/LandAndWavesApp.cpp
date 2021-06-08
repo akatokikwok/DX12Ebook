@@ -109,7 +109,7 @@ private:
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
-	RenderItem* mWavesRitem = nullptr;
+	RenderItem* mWavesRitem = nullptr;// 波浪专属渲染项
 
 	// List of all the render items.
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
@@ -424,9 +424,10 @@ void LandAndWavesApp::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+/// 每一帧中,都以此函数模拟波浪并更新"帧资源"中的波浪 "动态顶点缓存"
 void LandAndWavesApp::UpdateWaves(const GameTimer& gt)
 {
-	// Every quarter second, generate a random wave.
+	// 此处逻辑设置每隔0.25秒 生成1个随机波浪
 	static float t_base = 0.0f;
 	if((mTimer.TotalTime() - t_base) >= 0.25f)
 	{
@@ -440,22 +441,22 @@ void LandAndWavesApp::UpdateWaves(const GameTimer& gt)
 		mWaves->Disturb(i, j, r);
 	}
 
-	// Update the wave simulation.
+	// 调用波浪对象里的自动更新
 	mWaves->Update(gt.DeltaTime());
 
-	// Update the wave vertex buffer with the new solution.
-	auto currWavesVB = mCurrFrameResource->WavesVB.get();
-	for(int i = 0; i < mWaves->VertexCount(); ++i)
+	/* 使用波浪数学方程计算出的新数据来更新"波浪动态顶点缓存"*/
+	auto currWavesVB = mCurrFrameResource->WavesVB.get();// 先拿到当前帧资源内部的波浪动态顶点缓存
+	for(int i = 0; i < mWaves->VertexCount(); ++i)// 遍历波浪对象的每个点
 	{
+		// 遍历到的第i个波浪点的数据 就 填充给 1个新点v
 		Vertex v;
-
 		v.Pos = mWaves->Position(i);
         v.Color = XMFLOAT4(DirectX::Colors::Blue);
-
+		// 把第i个新点v作为数据源, 以UploadBuffer::CopyData形式真正拷贝到帧资源里的"波浪动态顶点缓存"里
 		currWavesVB->CopyData(i, v);
 	}
 
-	// Set the dynamic VB of the wave renderitem to the current frame VB.
+	/* 波浪动态顶点缓存填充到 波浪渲染项里的几何体中去*/
 	mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
 }
 
@@ -764,7 +765,7 @@ void LandAndWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const 
 		// 先拿到 物体常数的 虚拟地址
 		// 把虚拟地址 偏移到 渲染项里缓存区序号 * 单物体常数字节
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress();
-        objCBAddress += ri->ObjCBIndex*objCBByteSize;
+        objCBAddress += ri->ObjCBIndex * objCBByteSize;
 
 		// SetGraphicsRootConstantBufferView函数 以传递参数形式把CBV和某个root descriptor相绑定
 		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);

@@ -27,7 +27,7 @@ struct PassConstants
     float DeltaTime = 0.0f;
 };
 
-// 绘制山峰的顶点结构体型, 此Vertex型位于帧资源.h里
+// 绘制山峰/波浪的顶点结构体型, 此Vertex型位于帧资源.h里
 struct Vertex
 {
     DirectX::XMFLOAT3 Pos;
@@ -39,7 +39,7 @@ struct Vertex
 struct FrameResource
 {
 public:
-    
+    /* 帧资源构造的时候就创建出波浪的动态顶点缓存, 还有ObjectCB及PassCB*/
     FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT waveVertCount);
     FrameResource(const FrameResource& rhs) = delete;
     FrameResource& operator=(const FrameResource& rhs) = delete;
@@ -54,8 +54,8 @@ public:
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
     std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
 
-    // We cannot update a dynamic vertex buffer until the GPU is done processing
-    // the commands that reference it.  So each frame needs their own.
+    // We cannot update a dynamic vertex buffer until the GPU is done processing the commands that reference it.  So each frame needs their own.
+    //我们不能更新一个动态顶点缓冲区，直到GPU处理完引用它的命令。所以每个帧都需要自己的帧。
     std::unique_ptr<UploadBuffer<Vertex>> WavesVB = nullptr;
 
     // Fence value to mark commands up to this fence point.  This lets us
