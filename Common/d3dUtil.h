@@ -248,31 +248,30 @@ struct MaterialConstants
 
 // Simple struct to represent a material for our demos.  A production 3D engine
 // would likely create a class hierarchy of Materials.
+// 定义在Util.h的材质结构体
 struct Material
 {
-	// Unique material name for lookup.
+	// 便于查找材质的唯一名称
 	std::string Name;
 
-	// Index into constant buffer corresponding to this material.
+	// 本材质的常量缓存区索引,默认为-1
 	int MatCBIndex = -1;
 
-	// Index into SRV heap for diffuse texture.
+	// 漫反射纹理位于SRV堆中的索引, 默认为-1
 	int DiffuseSrvHeapIndex = -1;
 
 	// Index into SRV heap for normal texture.
 	int NormalSrvHeapIndex = -1;
 
-	// Dirty flag indicating the material has changed and we need to update the constant buffer.
-	// Because we have a material constant buffer for each FrameResource, we have to apply the
-	// update to each FrameResource.  Thus, when we modify a material we should set 
-	// NumFramesDirty = gNumFrameResources so that each frame resource gets the update.
+	// "脏标记", 用以表示本材质已有变动,提示更新常数缓存
+    // 每个帧资源都持有一个材质常量, 所以要对所有帧资源执行更新, 所以这里把"脏标记" 等价于 帧资源个数
 	int NumFramesDirty = gNumFrameResources;
 
-	// Material constant buffer data used for shading.
-	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
-	float Roughness = .25f;
-	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+	// 用于shader着色的 "材质常量缓存数据"
+	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };// 漫反射率
+	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };// 菲涅尔系数(就是施利克公式里的RF(0°))(和粗糙度一起用于控制镜面光)
+	float Roughness = .25f;// 粗糙度(和菲涅尔系数一起用于控制镜面光),越大越粗糙
+	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();// 材质变换矩阵
 };
 
 struct Texture
