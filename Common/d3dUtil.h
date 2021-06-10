@@ -236,25 +236,24 @@ struct Light
 
 #define MaxLights 16
 
+// 定义在util.h内的材质常量缓冲区结构体
 struct MaterialConstants
 {
 	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
 	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
 	float Roughness = 0.25f;
 
-	// Used in texture mapping.
+	// 供纹理贴图使用的材质Transform
 	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
 };
 
-// Simple struct to represent a material for our demos.  A production 3D engine
-// would likely create a class hierarchy of Materials.
 // 定义在Util.h的材质结构体
 struct Material
 {
 	// 便于查找材质的唯一名称
 	std::string Name;
 
-	// 本材质的常量缓存区索引,默认为-1
+	// 本材质的第几号缓存区, 可被外部数据源以CopyData()填充更新,默认为-1
 	int MatCBIndex = -1;
 
 	// 漫反射纹理位于SRV堆中的索引, 默认为-1
@@ -263,7 +262,7 @@ struct Material
 	// Index into SRV heap for normal texture.
 	int NormalSrvHeapIndex = -1;
 
-	// "脏标记", 用以表示本材质已有变动,提示更新常数缓存
+	// "脏标记", 用以表示本材质已有变动,提示更新常数缓存,默认为3(帧资源个数);
     // 每个帧资源都持有一个材质常量, 所以要对所有帧资源执行更新, 所以这里把"脏标记" 等价于 帧资源个数
 	int NumFramesDirty = gNumFrameResources;
 

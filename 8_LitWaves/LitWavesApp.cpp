@@ -44,7 +44,7 @@ struct RenderItem
 	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
 	UINT ObjCBIndex = -1;
 
-	Material* Mat = nullptr;
+	Material* Mat = nullptr;// 渲染项里持有1个材质结构体
 	MeshGeometry* Geo = nullptr;
 
 	// Primitive topology.
@@ -408,26 +408,27 @@ void LitWavesApp::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
+// 当材质脏标记时候,将其复制到GPU端常量缓存对应子区域
 void LitWavesApp::UpdateMaterialCBs(const GameTimer& gt)
 {
-	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-	for(auto& e : mMaterials)
+	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();// 拿到当前"帧资源"里的"材质常量缓存",是一个上传资源
+	for(auto& e : mMaterials)// 遍历字段材质表
 	{
-		// Only update the cbuffer data if the constants have changed.  If the cbuffer
-		// data changes, it needs to be updated for each FrameResource.
+		// 拿到第i号材质实例
 		Material* mat = e.second.get();
 		if(mat->NumFramesDirty > 0)
 		{
-			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);//拿到第i号材质里的变换矩阵
 
+			// 做值, 创建一个供GPU用的材质常量缓存,它所有属性均有第i号材质的填充
 			MaterialConstants matConstants;
 			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
 			matConstants.FresnelR0 = mat->FresnelR0;
 			matConstants.Roughness = mat->Roughness;
-
+			// 做值用作数据源,更新第i号材质的 第MatCBIndex 号的缓存区
 			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 
-			// Next FrameResource need to be updated too.
+			// 也要对下一个帧资源更新
 			mat->NumFramesDirty--;
 		}
 	}
@@ -699,24 +700,24 @@ void LitWavesApp::BuildFrameResources()
     }
 }
 
+// 初始化1个草材质,1个水材质,并存到字段材质表内
 void LitWavesApp::BuildMaterials()
 {
-	auto grass = std::make_unique<Material>();
-	grass->Name = "grass";
-	grass->MatCBIndex = 0;
-    grass->DiffuseAlbedo = XMFLOAT4(0.2f, 0.6f, 0.2f, 1.0f);
-    grass->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
-    grass->Roughness = 0.125f;
+	auto grass = std::make_unique<Material>();// 构建一个草材质
+	grass->Name = "grass";// 材质名
+	grass->MatCBIndex = 0;// 材质常量缓存区 0
+    grass->DiffuseAlbedo = XMFLOAT4(0.2f, 0.6f, 0.2f, 1.0f);// 漫反射率
+    grass->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);// 菲涅尔系数(会影响高光)
+    grass->Roughness = 0.125f;// 粗糙度(会影响高光)
 
-    // This is not a good water material definition, but we do not have all the rendering
-    // tools we need (transparency, environment reflection), so we fake it for now.
-	auto water = std::make_unique<Material>();
+   
+	auto water = std::make_unique<Material>();// 构建一个水材质
 	water->Name = "water";
-	water->MatCBIndex = 1;
+	water->MatCBIndex = 1;// 材质常量缓存区 1
     water->DiffuseAlbedo = XMFLOAT4(0.0f, 0.2f, 0.6f, 1.0f);
     water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
     water->Roughness = 0.0f;
-
+	// 更新全局的材质表
 	mMaterials["grass"] = std::move(grass);
 	mMaterials["water"] = std::move(water);
 }
@@ -755,27 +756,29 @@ void LitWavesApp::BuildRenderItems()
 
 void LitWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
-	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));// 物体 字节255化
+	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));// 材质常量 字节255化
 
-	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
-	auto matCB = mCurrFrameResource->MaterialCB->Resource();
+	auto objectCB = mCurrFrameResource->ObjectCB->Resource();// 当前帧里的物体CB
+	auto matCB = mCurrFrameResource->MaterialCB->Resource();// 当前帧里的材质CB
 
-	// For each render item...
+	// 遍历每个渲染项
 	for(size_t i = 0; i < ritems.size(); ++i)
 	{
-		auto ri = ritems[i];
+		auto ri = ritems[i];// 第i号渲染项
 
-		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
-		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
-		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());// 设置管线顶点缓存(需要几何体内部顶点缓存视图)
+		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());// 设置管线索引缓存(需要几何体内部索引缓存视图)
+		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);// 设置图元
 
+		// 计算物体的虚拟地址 和 材质的虚拟地址
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
 
-		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
-		cmdList->SetGraphicsRootConstantBufferView(1, matCBAddress);
-
+		// SetGraphicsRootConstantBufferView函数 以传递参数形式把CBV和某个root descriptor相绑定,需要借助 虚拟地址
+		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress); // 设定第i号渲染项绘制调用所需描述符
+		cmdList->SetGraphicsRootConstantBufferView(1, matCBAddress);// 设定第i号渲染项绘制调用所需描述符(因为有2个帧资源常量,分别是物体和材质)
+		// 按渲染项绘制
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
 }

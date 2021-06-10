@@ -24,6 +24,7 @@
     <ProjectGuid>{9c6d5c14-62af-4274-a0de-f67720224ac6}</ProjectGuid>
     <RootNamespace>My7Shapes</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>7_1_Shapes</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
