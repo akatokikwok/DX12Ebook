@@ -114,7 +114,7 @@ protected:
 	
     Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
     Microsoft::WRL::ComPtr<IDXGISwapChain> mSwapChain;
-    Microsoft::WRL::ComPtr<ID3D12Device> md3dDevice;
+    Microsoft::WRL::ComPtr<ID3D12Device> md3dDevice;// 逻辑设备
 
     Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
     UINT64 mCurrentFence = 0;// 当前围栏序号
@@ -141,7 +141,7 @@ protected:
 	// 用户应在D3DApp的子类的子类构造器里自定义这些初始值
 	std::wstring mMainWndCaption = L"d3d App";
 	D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
-    DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;// 后台缓存格式
     DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	int mClientWidth = 800;
 	int mClientHeight = 600;

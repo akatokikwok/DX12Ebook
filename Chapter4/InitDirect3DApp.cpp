@@ -6,7 +6,7 @@
 //
 //***************************************************************************************
 
-#include "../DX12Ebook/Common/d3dApp.h"
+#include "../Common/d3dApp.h"
 #include <DirectXColors.h>
 
 using namespace DirectX;

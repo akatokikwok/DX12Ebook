@@ -140,15 +140,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\DX12Ebook\Common\d3dApp.h" />
-    <ClInclude Include="..\DX12Ebook\Common\d3dUtil.h" />
-    <ClInclude Include="..\DX12Ebook\Common\GameTimer.h" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="..\Common\d3dApp.cpp" />
     <ClCompile Include="..\Common\d3dUtil.cpp" />
     <ClCompile Include="..\Common\GameTimer.cpp" />
     <ClCompile Include="InitDirect3DApp.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Common\d3dApp.h" />
+    <ClInclude Include="..\Common\d3dUtil.h" />
+    <ClInclude Include="..\Common\GameTimer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
