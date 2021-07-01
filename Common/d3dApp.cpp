@@ -465,9 +465,10 @@ bool D3DApp::InitDirect3D()
 
 void D3DApp::CreateCommandObjects()
 {
-	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+	D3D12_COMMAND_QUEUE_DESC queueDesc = {};// 队列
 	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	/* 创建出队列,IID_PPV_ARGS宏拿取ID3D12CommandQueue接口的COM ID并强转为void**型*/
 	ThrowIfFailed(md3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue)));
 
 	ThrowIfFailed(md3dDevice->CreateCommandAllocator(
@@ -591,18 +592,18 @@ void D3DApp::CalculateFrameStats()
 void D3DApp::LogAdapters()
 {
 	UINT i = 0;
-	IDXGIAdapter* adapter = nullptr;
-	std::vector<IDXGIAdapter*> adapterList;
-	while (mdxgiFactory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND) {
+	IDXGIAdapter* adapter = nullptr;// IDXGIAdapter是适配器接口指针
+	std::vector<IDXGIAdapter*> adapterList;// 已查过的显卡集
+	while (mdxgiFactory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND) {// 只要能持续查找到显卡
 		DXGI_ADAPTER_DESC desc;
-		adapter->GetDesc(&desc);
+		adapter->GetDesc(&desc);// 从显卡里取出信息存成一个desc
 
+		// 把desc拼成一个字符串并输出
 		std::wstring text = L"***Adapter: ";
 		text += desc.Description;
 		text += L"\n";
-
 		OutputDebugString(text.c_str());
-
+		// 显卡记录到已查显卡集里
 		adapterList.push_back(adapter);
 
 		++i;

@@ -113,6 +113,7 @@ void InitDirect3DApp::Draw(const GameTimer& gt)
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     // 此时已经完成了命令列表里一系列的命令记录,所以关闭命令列表
+	// !!!!在执行mCommandQueue->ExecuteCommandLists方法前一定要把命令列表关闭
 	ThrowIfFailed(mCommandList->Close());
 	/// ******************************************结束命令列表记录*********************
 

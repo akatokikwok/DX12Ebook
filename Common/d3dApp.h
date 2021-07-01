@@ -112,7 +112,7 @@ protected:
 	// 时间计数器类用于记录帧间隔 以及 游戏总时长
 	GameTimer mTimer;
 	
-    Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
+    Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;// IDXGIFactory4是DXGI中关键接口
     Microsoft::WRL::ComPtr<IDXGISwapChain> mSwapChain;
     Microsoft::WRL::ComPtr<ID3D12Device> md3dDevice;// 逻辑设备
 
