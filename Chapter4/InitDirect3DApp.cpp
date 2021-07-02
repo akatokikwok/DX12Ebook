@@ -82,7 +82,7 @@ void InitDirect3DApp::Update(const GameTimer& gt)
 void InitDirect3DApp::Draw(const GameTimer& gt)
 {
 	// 为了重复使用"用来记录命令"的内存, 重置命令分配器
-	// 只有当与GPU相关联的命令列表执行完成
+	// !!!!PS: 没有确定GPU执行完分配器内存里的所有命令之前,严禁重置命令分配器
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 
 	// 注意调用时机!!!当队列执行了ExecuteCommandList函数来讲某个命令列表加入队列之后,
@@ -109,8 +109,10 @@ void InitDirect3DApp::Draw(const GameTimer& gt)
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 	
     // 再次堆资源状态执行切换,把从渲染目标状态切换为呈现状态
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+		CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT
+	));
 
     // 此时已经完成了命令列表里一系列的命令记录,所以关闭命令列表
 	// !!!!在执行mCommandQueue->ExecuteCommandLists方法前一定要把命令列表关闭

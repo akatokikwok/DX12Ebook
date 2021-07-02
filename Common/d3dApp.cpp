@@ -426,9 +426,11 @@ bool D3DApp::InitDirect3D()
 			D3D_FEATURE_LEVEL_11_0,
 			IID_PPV_ARGS(&md3dDevice)));
 	}
-
-	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
-		IID_PPV_ARGS(&mFence)));
+	/* 创建出1个围栏对象mFence*/
+	ThrowIfFailed(md3dDevice->CreateFence(
+		0, D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(&mFence)
+	));
 
 	mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	mDsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
@@ -470,16 +472,16 @@ void D3DApp::CreateCommandObjects()
 	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	/* 创建出队列,IID_PPV_ARGS宏拿取ID3D12CommandQueue接口的COM ID并强转为void**型*/
 	ThrowIfFailed(md3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue)));
-
+	/* 创建出命令分配器,命令存储在分配器里*/
 	ThrowIfFailed(md3dDevice->CreateCommandAllocator(
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
 		IID_PPV_ARGS(mDirectCmdListAlloc.GetAddressOf())));
-
+	/* 而创建命令列表,需要1个与之关联的分配器*/
 	ThrowIfFailed(md3dDevice->CreateCommandList(
-		0,
+		0,/*单GPU系统设置为0*/
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
-		mDirectCmdListAlloc.Get(), // Associated command allocator
-		nullptr,                   // Initial PipelineStateObject
+		mDirectCmdListAlloc.Get(), // 与列表关联的分配器,类型必须匹配,此处均为DIRECT
+		nullptr,                   // 列表的流水线初始状态
 		IID_PPV_ARGS(mCommandList.GetAddressOf())));
 
 	// Start off in a closed state.  This is because the first time we refer 
@@ -519,14 +521,14 @@ void D3DApp::CreateSwapChain()
 
 void D3DApp::FlushCommandQueue()
 {
-	// 增加围栏值,接下来将命令命中到此围栏点
+	// 每次调用刷新队列的时候,就需要注意增加围栏值,为了将命令命中到此新围栏点
 	mCurrentFence++;
 
 	// 向队列中添加一条用来设置新围栏点的命令
 	// 由于此命令由GPU负责处理,故GPU处理完队列Signal()之前的所有命令前, GPU不会再设置新的围栏点
 	ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence));
 
-	// 强制CPU等待GPU, 直到GPU处理完 这个围栏点前所有的命令
+	// 强制CPU等待GPU, 持续监测围栏进行值小于当前围栏点
 	if (mFence->GetCompletedValue() < mCurrentFence) {
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);// 声明一个事件句柄
 
