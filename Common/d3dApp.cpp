@@ -399,7 +399,7 @@ bool D3DApp::InitMainWindow()
 
 bool D3DApp::InitDirect3D()
 {
-#if defined(DEBUG) || defined(_DEBUG) 
+#if defined(DEBUG) || defined(_DEBUG) //第0步: 启用D3D12的调试层
 	// Enable the D3D12 debug layer.
 	{
 		ComPtr<ID3D12Debug> debugController;
@@ -410,38 +410,34 @@ bool D3DApp::InitDirect3D()
 
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
 
-	// Try to create hardware device.
+	/* ====1. 初始化D3D的第一步, 创建D3D12设备(即显卡)并记录结果*/
 	HRESULT hardwareResult = D3D12CreateDevice(
-		nullptr,             // default adapter
+		nullptr,             // 归类到默认显卡
 		D3D_FEATURE_LEVEL_11_0,
 		IID_PPV_ARGS(&md3dDevice));
 
-	// Fallback to WARP device.
+	// =====如果d3d设备创建失败,会回退到WRAP====
 	if (FAILED(hardwareResult)) {
 		ComPtr<IDXGIAdapter> pWarpAdapter;
-		ThrowIfFailed(mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
-
+		ThrowIfFailed(mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));// 先dxgifactory枚举出WARP
+		// 再创建出设备,归类到WRAP
 		ThrowIfFailed(D3D12CreateDevice(
 			pWarpAdapter.Get(),
 			D3D_FEATURE_LEVEL_11_0,
 			IID_PPV_ARGS(&md3dDevice)));
 	}
-	/* 创建出1个围栏对象mFence*/
+	/* =====2. 创建出1个围栏对象mFence 并获取各描述符大小(渲染目标\深度模板\常数)GetDescriptorHandleIncrementSize*/
 	ThrowIfFailed(md3dDevice->CreateFence(
 		0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&mFence)
 	));
-
 	mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	mDsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	// Check 4X MSAA quality support for our back buffer format.
-	// All Direct3D 11 capable devices support 4X MSAA for all render 
-	// target formats, so we only need to check quality support.
-
+	/* =====3. 检测对4XMSAA质量级别的支持  D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS结构体*/
 	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;// 多重采样质量级别info,此处作为输入参数
-	msQualityLevels.Format = mBackBufferFormat;// 纹理格式
+	msQualityLevels.Format = mBackBufferFormat;// 后台缓存格式
 	msQualityLevels.SampleCount = 4;// 采样数量
 	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;// MSAA支持的flag
 	msQualityLevels.NumQualityLevels = 0;
@@ -450,15 +446,16 @@ bool D3DApp::InitDirect3D()
 		&msQualityLevels,
 		sizeof(msQualityLevels)
 	));
-
+	// 4X MSAA质量输出出来
 	m4xMsaaQuality = msQualityLevels.NumQualityLevels;
-	assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level.");
+	assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level.");// 大部分硬件肯定支持4X MSAA
 
 #ifdef _DEBUG
 	LogAdapters();
 #endif
-
+	/* =====4. 依次创建命令队列\命令分配器\命令列表,随后结束记录命令*/
 	CreateCommandObjects();
+
 	CreateSwapChain();
 	CreateRtvAndDsvDescriptorHeaps();
 
@@ -484,9 +481,7 @@ void D3DApp::CreateCommandObjects()
 		nullptr,                   // 列表的流水线初始状态
 		IID_PPV_ARGS(mCommandList.GetAddressOf())));
 
-	// Start off in a closed state.  This is because the first time we refer 
-	// to the command list we will Reset it, and it needs to be closed before
-	// calling Reset.
+	// 创建完成后首先必须关闭命令列表,这是因为第一次使用列表时候需要对其重置,而一旦要重置则必须在重置前关闭
 	mCommandList->Close();
 }
 

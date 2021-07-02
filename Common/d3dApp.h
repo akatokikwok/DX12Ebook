@@ -119,9 +119,9 @@ protected:
     Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
     UINT64 mCurrentFence = 0;// 当前围栏序号
 	
-    Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue;
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue;// 命令队列,GPU控制
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mDirectCmdListAlloc;// 命令分配器COM对象
-    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;// 命令列表COM对象
+    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;// 命令列表COM对象,CPU控制
 
 	static const int SwapChainBufferCount = 2;// 交换链中缓存个数
 	int mCurrBackBuffer = 0;// 交换链中当前缓存序数,默认为0
