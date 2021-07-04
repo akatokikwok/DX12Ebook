@@ -128,8 +128,8 @@ protected:
     Microsoft::WRL::ComPtr<ID3D12Resource> mSwapChainBuffer[SwapChainBufferCount];
     Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
 
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;// ID3D12DescriptorHeap对象,渲染目标视图堆
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;// 深度模板视图堆
 
     D3D12_VIEWPORT mScreenViewport;// 视口对象
     D3D12_RECT mScissorRect;// 裁剪矩形对象
@@ -142,7 +142,7 @@ protected:
 	std::wstring mMainWndCaption = L"d3d App";
 	D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
     DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;// 后台缓存格式
-    DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;// 用以填充清除值的深度模板格式
 	int mClientWidth = 800;
 	int mClientHeight = 600;
 };
