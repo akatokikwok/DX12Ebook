@@ -75,7 +75,7 @@ int D3DApp::Run()
 	mTimer.Reset();
 
 	while (msg.message != WM_QUIT) {
-		// 如果有窗口消息就处理一下
+		// 使用PeekMessage持续捕获消息
 		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
@@ -241,8 +241,7 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		// WM_ACTIVATE 消息会被发送 只要当渲染程序被激活或者进入非激活时
 		// We pause the game when the window is deactivated and unpause it when it becomes active.  
 		case WM_ACTIVATE:
-			if (LOWORD(wParam) == WA_INACTIVE)// 当程序切换为不活动时候
-			{
+			if (LOWORD(wParam) == WA_INACTIVE) {// 当程序切换为不活动时候
 				mAppPaused = true;// 命中程序暂停
 				mTimer.Stop();// 暂停计数器
 			} else// 当程序切换为活动
@@ -253,6 +252,7 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			return 0;
 
 			// WM_SIZE is sent 当显示窗口发生大小变化
+			/// WM_SIZE核心目的是为了让后台缓存和深度缓存与工作区矩形保持一致,防止拉伸
 		case WM_SIZE:
 			// Save the new client area dimensions.
 			mClientWidth = LOWORD(lParam);
@@ -370,7 +370,7 @@ bool D3DApp::InitMainWindow()
 	wc.lpszClassName = L"MainWnd";
 
 	if (!RegisterClass(&wc)) {
-		MessageBox(0, L"RegisterClass Failed.", 0, 0);
+		MessageBox(0, L"注册窗口类失败;;;;;;;RegisterClass Failed.", 0, 0);
 		return false;
 	}
 
@@ -379,16 +379,16 @@ bool D3DApp::InitMainWindow()
 	AdjustWindowRect(&R, WS_OVERLAPPEDWINDOW, false);
 	int width = R.right - R.left;
 	int height = R.bottom - R.top;
-
+	/* 创建出一个窗口 */
 	mhMainWnd = CreateWindow(L"MainWnd", mMainWndCaption.c_str(),
 		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, mhAppInst, 0);
 	if (!mhMainWnd) {
-		MessageBox(0, L"CreateWindow Failed.", 0, 0);
+		MessageBox(0, L"窗口创建失败;;;;CreateWindow Failed.", 0, 0);
 		return false;
 	}
 
-	ShowWindow(mhMainWnd, SW_SHOW);
-	UpdateWindow(mhMainWnd);
+	ShowWindow(mhMainWnd, SW_SHOW);/* 呈现窗口*/
+	UpdateWindow(mhMainWnd);/* 更新窗口*/
 
 	return true;
 }

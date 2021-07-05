@@ -11,19 +11,20 @@
 
 using namespace DirectX;
 
-/* 继承自D3DApp类*/
+/* InitDirect3DApp类继承自D3DApp类*/
 class InitDirect3DApp : public D3DApp
 {
 public:
 	InitDirect3DApp(HINSTANCE hInstance);
 	~InitDirect3DApp();
-
+	/// 重载D3DAPP类框架方法Initialize
 	virtual bool Initialize()override;
 
 private:
-    virtual void OnResize()override;
-    virtual void Update(const GameTimer& gt)override;
-    virtual void Draw(const GameTimer& gt)override;
+	
+    virtual void OnResize()override;/// 重载框架方法OnResize()
+    virtual void Update(const GameTimer& gt)override;/// 重载框架方法Update
+    virtual void Draw(const GameTimer& gt)override;/// 重载框架方法Draw
 
 };
 
@@ -102,11 +103,11 @@ void InitDirect3DApp::Draw(const GameTimer& gt)
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
     // 清除后台缓存视图 和 深度模板缓存视图
-	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr/*清除整个区域*/);
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 	
-    // 指定将要渲染的缓存(当前后台缓存和深度模板缓存)
-	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+    // 指定将要渲染的一些缓存的 视图句柄(当前后台缓存和深度模板缓存)
+	mCommandList->OMSetRenderTargets(1/*待绑定的RTV句柄的数量*/, &CurrentBackBufferView()/*RTV数组指针*/, true/*让RTV在堆里连续存放*/, &DepthStencilView()/*DSV指针*/);
 	
     // 再次堆资源状态执行切换,把从渲染目标状态切换为呈现状态
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
