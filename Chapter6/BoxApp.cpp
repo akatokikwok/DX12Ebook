@@ -477,7 +477,7 @@ void BoxApp::BuildBoxGeometry()
 	};
 
 
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);// 顶点数据总大小
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);// 拿到8个顶点的字节大小,它们就是vertexbuffer字节尺寸
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);// 索引数据总大小
 
 	mBoxGeo = std::make_unique<MeshGeometry>();// 构造模型,此处是MESHGeometry型
@@ -493,7 +493,7 @@ void BoxApp::BuildBoxGeometry()
 	// 索引数组数据内容 及 大小被拷贝至 模型的 VertexBufferCPU成员里
 	CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
-	// 在模型的相关成员被填充过值之后, 借助工具方法为模型的VertexBufferUploader创建出 上传顶点缓存
+	// 借助工具函数CreateDefaultBuffer来构建盒子模型里的 位于中介位置的UploadBuffer
 	mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
 		mCommandList.Get(), vertices.data(), vbByteSize, mBoxGeo->VertexBufferUploader);
 

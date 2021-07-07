@@ -118,9 +118,10 @@ public:
     */
     static Microsoft::WRL::ComPtr<ID3DBlob> LoadBinary(const std::wstring& filename);
 
-    /*使用d3dUtil::CreateDefaultBuffer来避免重复使用默认堆操作GPU资源 
-    * 常用于创建顶点\索引缓存
-    * 参数initData:数据源, byteSize:此种数据的大小 */
+    /* 使用d3dUtil::CreateDefaultBuffer来避免重复使用默认堆操作GPU资源 (为了利用Upload堆来初始化DEFAULT堆中的数据)
+     * 常用于创建顶点\索引缓存
+     * 参数initData:数据源, byteSize:此种数据的大小 
+     */
     static Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
         ID3D12Device* device,
         ID3D12GraphicsCommandList* cmdList,
