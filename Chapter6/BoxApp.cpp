@@ -314,7 +314,7 @@ void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
 		// Update the camera radius based on input.
 		mRadius += dx - dy;
 
-		// Restrict the radius.
+		// 限制可视半径的范围
 		mRadius = MathHelper::Clamp(mRadius, 3.0f, 15.0f);
 	}
 

@@ -11,7 +11,7 @@ template<typename T>
 class UploadBuffer
 {
 public:
-    /* 构造器负责
+    /* 类构造器负责 创建出一个UploadBuffer并 使用其存储多少个元素的 特定buffer(一般用于常数缓存) 
     * 1.256化泛型T实例的字节大小
     * 2.创建出上传堆资源来匹配CPU端
     * 3.用Map映射出上传堆资源里欲更新的数据*/     
@@ -19,7 +19,6 @@ public:
         mIsConstantBuffer(isConstantBuffer)
     {
         mElementByteSize = sizeof(T);// 缓存区结构体大小;若是常量缓存,则需要注意将其变为256整数倍
-
         // 由于硬件(实则是D3D12_BUFFER_CONSTANT_BUFFER_VIEW_DESC)只能按m*256B的偏移量这种规格查看常量数据
         if(isConstantBuffer)
             mElementByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(T));
@@ -28,7 +27,7 @@ public:
         ThrowIfFailed(device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
             D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize*elementCount),//单缓存区大小 * 多少个缓存区
+            &CD3DX12_RESOURCE_DESC::Buffer((mElementByteSize) * elementCount),//单缓存区大小 * 多少个缓存区
 			D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
             IID_PPV_ARGS(&mUploadBuffer)));
@@ -53,7 +52,7 @@ public:
         mMappedData = nullptr;
     }
 
-    /* 此方法拿上传资源(比如常数缓存)的裸指针*/
+    /* 此方法拿上传资源mUploadBuffer (比如常数缓存)的裸指针*/
     ID3D12Resource* Resource()const
     {
         return mUploadBuffer.Get();
@@ -69,7 +68,7 @@ public:
 
 private:
     Microsoft::WRL::ComPtr<ID3D12Resource> mUploadBuffer;// 一种上传缓存资源(一般用于常量缓存)
-    BYTE* mMappedData = nullptr;// 映射出来的欲更新资源
+    BYTE* mMappedData = nullptr;// 映射出来的欲更新资源的指针
 
     UINT mElementByteSize = 0;// 缓存区结构体大小;若是常量缓存,则需要注意将其变为256整数倍
     bool mIsConstantBuffer = false;

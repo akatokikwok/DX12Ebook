@@ -96,7 +96,7 @@ public:
 
     static std::string ToString(HRESULT hr);
 
-    /* 将某种缓存区大小变为256B的整数倍,目的是来适配硬件按256倍规格来查看偏移量*/
+    /* 将某种缓存区大小变为256B的整数倍,目的是来适配硬件按256倍规格来查看偏移量 */
     static UINT CalcConstantBufferByteSize(UINT byteSize)
     {
         // Constant buffers must be a multiple of the minimum hardware
