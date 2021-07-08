@@ -242,7 +242,7 @@ void BoxApp::Draw(const GameTimer& gt)
 
 	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());// 设置顶点缓存,需要Meshgeometry类的成员顶点缓存视图
 	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());// 设置索引缓存,同样的也是需要Meshgeometry类的成员索引缓存视图
-	mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);// 设置图元类型为三角形列表
+	mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);// 设置图元类型为三角形列表;
 
 	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());// 设置描述符表(常量缓存)
 
@@ -252,7 +252,7 @@ void BoxApp::Draw(const GameTimer& gt)
 		1, // 实例化高级技术,默认设为1
 		0, // 每个模型相对于全局索引索引缓存里的起始索引序数,这里只有一个模型,设为0
 		0, // 每个模型的第一个顶点相对于全局顶点缓存的位置,即"基准顶点地址"
-		0 // 实例化高级技术相关,默认设为0
+		0  // 实例化高级技术相关,默认设为0
 	);
 
 	// 上述命令处理完了之后,在这里把资源从渲染目标状态切换为呈现状态
@@ -476,7 +476,6 @@ void BoxApp::BuildBoxGeometry()
 		4, 3, 7
 	};
 
-
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);// 拿到8个顶点的字节大小,它们就是vertexbuffer字节尺寸
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);// 索引数据总大小
 
@@ -493,11 +492,11 @@ void BoxApp::BuildBoxGeometry()
 	// 索引数组数据内容 及 大小被拷贝至 模型的 VertexBufferCPU成员里
 	CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
-	// 借助工具函数CreateDefaultBuffer来构建盒子模型里的 位于中介位置的UploadBuffer
+	// 借助工具函数CreateDefaultBuffer来构建盒子模型里的 位于中介位置的 VertexUploadBuffer
 	mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
 		mCommandList.Get(), vertices.data(), vbByteSize, mBoxGeo->VertexBufferUploader);
 
-	// 在模型的相关成员被填充过值之后, 借助工具方法为模型的IndexBufferUploader创建出 上传索引缓存
+	// 使用索引data, 来借助工具方法来构建盒子模型里的 位于中介位置的 indexBufferUploader
 	mBoxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
 		mCommandList.Get(), indices.data(), ibByteSize, mBoxGeo->IndexBufferUploader);
 
