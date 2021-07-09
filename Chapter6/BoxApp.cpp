@@ -23,7 +23,7 @@ struct Vertex
 struct ObjectConstants
 {
 	XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();// MVP矩阵
-	
+
 };
 
 /// D3DApp子类
@@ -95,16 +95,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	try
-	{
+	try 	{
 		BoxApp theApp(hInstance);
 		if (!theApp.Initialize())
 			return 0;
 
 		return theApp.Run();// 执行消息循环(非处理窗口消息的时候就执行每帧计算帧数, 更新场景, 绘制场景)
 	}
-	catch (DxException& e)
-	{
+	catch (DxException& e) 	{
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
 		return 0;
 	}
@@ -136,7 +134,7 @@ bool BoxApp::Initialize()
 	BuildRootSignature(); ///以根参数选型为CBV描述符table, 创建出根签名
 	BuildShadersAndInputLayout();/// 编译各个着色器的字节码 和 填充输入布局数组
 	BuildBoxGeometry();/// 创建盒子模型, 填充其顶点缓存和索引缓存,具体流程比较复杂,详见函数
-	BuildPSO();/// 创建管线状态
+	BuildPSO();/// 创建管线状态,由于PSO的验证比较耗时,推荐在初始化阶段就生成PSO
 
 	// 上面代码都是记录命令,此处开始关闭上述的命令列表的记录,在队列中执行命令
 	ThrowIfFailed(mCommandList->Close());
@@ -291,8 +289,7 @@ void BoxApp::OnMouseUp(WPARAM btnState, int x, int y)
 /* 鼠标移动的操作*/
 void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-	if ((btnState & MK_LBUTTON) != 0)
-	{
+	if ((btnState & MK_LBUTTON) != 0) 	{
 		// 根据鼠标左键移动的举例 计算旋转角度, 每个像素都按照此角度的 1/4执行旋转
 		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
 		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
@@ -303,9 +300,7 @@ void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	}
-	else if ((btnState & MK_RBUTTON) != 0)
-	{
+	} 	else if ((btnState & MK_RBUTTON) != 0) 	{
 		// 按下鼠标右键的时候让每个像素按照鼠标移动距离的0.005倍缩放
 		float dx = 0.005f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.005f * static_cast<float>(y - mLastMousePos.y);
@@ -346,7 +341,7 @@ void BoxApp::BuildConstantBuffers()
 
 	// 缓存区的起始地址(即索引序数为0的那个缓存区),使用裸指针的GetGPUVirtualAddress获得
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->GetGPUVirtualAddress();
-	
+
 	// 偏移到常量缓存里绘制第 0 个模型所需要的常量数据
 	int boxCBufIndex = 0;// 暂设目前的模型 是序数为0 的索引缓存区(因为可能以后会有十几个模型,就有n个缓存区)
 	cbAddress += boxCBufIndex * objCBByteSize;// 序数 * 单缓存区大小 再加上起始缓存区地址 得到最后地址
@@ -383,13 +378,12 @@ void BoxApp::BuildRootSignature()
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 	HRESULT hr = D3D12SerializeRootSignature(
-		&rootSigDesc, 
+		&rootSigDesc,
 		D3D_ROOT_SIGNATURE_VERSION_1,
 		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf()
 	);
 	// 检查errorBlob
-	if (errorBlob != nullptr)
-	{
+	if (errorBlob != nullptr) 	{
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	}
 	ThrowIfFailed(hr);
@@ -514,28 +508,32 @@ void BoxApp::BuildPSO()
 {
 	// 声明管线DESC
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
-	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
-	psoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
-	psoDesc.pRootSignature = mRootSignature.Get();
-	psoDesc.VS =
+	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));// 先默认步骤,清空一下流水线
+	psoDesc.InputLayout =							// 顶点输入布局描述
+	{
+		mInputLayout.data(),
+		(UINT)mInputLayout.size()
+	};
+	psoDesc.pRootSignature = mRootSignature.Get();	// 指向1个与此PSO相绑定的根签名的指针
+	psoDesc.VS =									// 待绑定的Vertex Shader
 	{
 		reinterpret_cast<BYTE*>(mvsByteCode->GetBufferPointer()),
 		mvsByteCode->GetBufferSize()
 	};
-	psoDesc.PS =
+	psoDesc.PS =									// 待绑定的Pixel Shader
 	{
 		reinterpret_cast<BYTE*>(mpsByteCode->GetBufferPointer()),
 		mpsByteCode->GetBufferSize()
 	};
-	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	psoDesc.SampleMask = UINT_MAX;
-	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.NumRenderTargets = 1;
-	psoDesc.RTVFormats[0] = mBackBufferFormat;
-	psoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
-	psoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
-	psoDesc.DSVFormat = mDepthStencilFormat;
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);// 指定光栅化状态
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);// 指定混合状态
+	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);// 配置深度模板状态
+	psoDesc.SampleMask = UINT_MAX;// 设置每个采样点的采集情况
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;// 图元拓扑类型
+	psoDesc.NumRenderTargets = 1;										// 同时渲染用到的渲染目标数量
+	psoDesc.RTVFormats[0] = mBackBufferFormat;							// 渲染目标格式
+	psoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;					// 多重采样数量	
+	psoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;// 多重采样每个像素质量级别
+	psoDesc.DSVFormat = mDepthStencilFormat;							// 深度模板缓存格式
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 }
