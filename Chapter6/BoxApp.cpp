@@ -231,20 +231,19 @@ void BoxApp::Draw(const GameTimer& gt)
 	// 在管线上设置 欲渲染的目标缓存区(此处是后台缓存), 需要两个视图(RTV和DSV)的句柄(偏移查找出来)
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
-	// 声明 并以 常量缓存描述符堆裸指针 初始化一个 ConstantBuffer描述符堆数组
-	// 在命令列表里设置cbuffer的描述符堆
+	// 用仅1个CBV堆初始化1个视图堆数组,再把视图堆数组设置到管线上
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
-	// 设置根签名
+	// 先设置CBV的根签名到管线上
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-
 
 	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());// 设置顶点缓存,需要Meshgeometry类的成员顶点缓存视图
 	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());// 设置索引缓存,同样的也是需要Meshgeometry类的成员索引缓存视图
 	mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);// 设置图元类型为三角形列表;
 
-	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());// 设置描述符表(常量缓存)
+	// 设置CBV的描述符表与管线相绑定
+	mCommandList->SetGraphicsRootDescriptorTable(0/*寄存器槽号*/, mCbvHeap->GetGPUDescriptorHandleForHeapStart()/*描述符堆中的首个view句柄*/);
 
 	// 按索引绘制
 	mCommandList->DrawIndexedInstanced(
@@ -352,12 +351,12 @@ void BoxApp::BuildConstantBuffers()
 	int boxCBufIndex = 0;// 暂设目前的模型 是序数为0 的索引缓存区(因为可能以后会有十几个模型,就有n个缓存区)
 	cbAddress += boxCBufIndex * objCBByteSize;// 序数 * 单缓存区大小 再加上起始缓存区地址 得到最后地址
 
-	// 填充常量缓存DESC, 需要 "真正的缓存区地址" 和 "单缓存区字节大小"
+	// 填充常量缓存DESC, 需要 "真正的缓存区地址" 和 "单缓存区字节大小" , 必须被优化为255字节的整数倍
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-	cbvDesc.BufferLocation = cbAddress;
+	cbvDesc.BufferLocation = cbAddress;// "常量缓存视图描述"的BufferLocation来对应 常量数据集里第 i 个物体的常量数据
 	cbvDesc.SizeInBytes = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
-	// 以D3D设备结合此前的 cbufferDesc 创建"常量缓存视图"
+	/// 从已有的常量堆里创建出constant buffer view
 	md3dDevice->CreateConstantBufferView(
 		&cbvDesc,
 		mCbvHeap->GetCPUDescriptorHandleForHeapStart());
@@ -368,23 +367,18 @@ void BoxApp::BuildConstantBuffers()
 */
 void BoxApp::BuildRootSignature()
 {
-	/// 原理说明: shader一般是需要以资源为输入(常量缓存\纹理\采样器)
-	/// 根签名定义了shader所需要的具体资源
-	/// shader程序看做一个函数,将输入资源看做传递的输入参数,则根签名为shader的函数签名
-	/// *****************************************************************
-
+	/// 1.声明1个根参数,并把 持有1个CBV的 descrptior table绑定到常量缓存区 的寄存器0号,即HLSL中的register(b0)
 	// 声明一个带1个元素的 根参数数组
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
-
 	// 结合上述根参数数组 选型并创建出一个只有1个CBV的描述符table
 	CD3DX12_DESCRIPTOR_RANGE cbvTable;
-	cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+	cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV/*描述符表的类型*/, 1/*这张表里的描述符的数量*/, 0/*绑定到HLSL着色器的槽位序数*/);
 	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable);
 
+	/// 2. 利用rootSigDesc初始化一个根签名里的blob槽位
 	// 根签名就是根参数的数组, 初始化一个根签名DESC
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr,
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
 	// 创建仅含1个slot的序列化Blob,即此处的serializedRootSig,(这个slot指向1个仅有单个CBUFFER组成的描述符) 
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
@@ -399,7 +393,7 @@ void BoxApp::BuildRootSignature()
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	}
 	ThrowIfFailed(hr);
-	// 创建出最终的根签名
+	/// 3. serializedRootSig->GetBufferPointer(),创建出最终的根签名
 	ThrowIfFailed(md3dDevice->CreateRootSignature(
 		0,
 		serializedRootSig->GetBufferPointer(),
