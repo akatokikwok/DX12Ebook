@@ -181,7 +181,7 @@ struct MeshGeometry
 	Microsoft::WRL::ComPtr<ID3D12Resource> IndexBufferUploader = nullptr;
 
 	// 与缓存区相关联的一些常用杂项数据
-	UINT VertexByteStride = 0;						// 顶点字节偏移
+	UINT VertexByteStride = 0;						// 单顶点字节大小(偏移)
 	UINT VertexBufferByteSize = 0;					// vertex buffer总大小
 	DXGI_FORMAT IndexFormat = DXGI_FORMAT_R16_UINT; // 索引格式,默认为DXGI_FORMAT_R16_UINT
 	UINT IndexBufferByteSize = 0;					// index  buffer总大小
