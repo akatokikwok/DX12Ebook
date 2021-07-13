@@ -39,12 +39,12 @@ struct Vertex
 };
 
 // 存有CPU为构建每一帧命令列表所需要的帧资源(如分配器, 多类型的常数缓存, 自带一个围栏点)
-// 其中的数据将依据程序而异, 这取决于实际绘制所需要的资源
+// 其中的数据将依据程序而异(目前只处理常数缓存), 这取决于实际绘制所需要的资源
 // FrameResource(ID3D12Device* device, UINT passCount(即PassConstants型缓存区数量), UINT objectCount(ObjectCB缓存区数量));
+// 构造器负责 // 创建一个命令分配器同时 实例化两个常数缓存指针
 struct FrameResource
 {
 public:
-	
 	FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount);
 	FrameResource(const FrameResource& rhs) = delete;
 	FrameResource& operator=(const FrameResource& rhs) = delete;

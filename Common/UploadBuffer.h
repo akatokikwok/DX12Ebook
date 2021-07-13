@@ -6,6 +6,7 @@
 * UploadBuffer类是负责上传缓存资源的构造与析构,处理资源映射,更新缓存区特定资源的封装类
 * 可以用于各种类型的上传缓存区
 * UploadBuffer(ID3D12Device* device, UINT elementCount, bool isConstantBuffer)
+* 类构造器负责 创建出一个UploadBuffer并 使用其存储多少个元素的 特定buffer(一般用于常数缓存) 
 */
 template<typename T>
 class UploadBuffer
