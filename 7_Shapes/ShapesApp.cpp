@@ -598,7 +598,8 @@ void ShapesApp::BuildShapeGeometry()
 		grid.Vertices.size() +
 		sphere.Vertices.size() +
 		cylinder.Vertices.size();
-	std::vector<Vertex> vertices(totalVertexCount);// vertices是全局顶点集
+
+	std::vector<Vertex> vertices(totalVertexCount);// 开辟出全局顶点内存,vertices是全局顶点集
 	// 4.1 遍历4种绘制物里 Meshdata里所有的顶点,给全局顶点集里的顶点属性插值
 	UINT k = 0;// K是全局的序数    
 	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) {
