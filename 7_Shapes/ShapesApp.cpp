@@ -235,7 +235,8 @@ void ShapesApp::Draw(const GameTimer& gt)
 	// 复用命令列表内存(需要分配器和PSO),此项目里设置了2种PSO
 	if (mIsWireframe) {
 		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
-	} else {
+	}
+	else {
 		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
 	}
 
@@ -324,7 +325,8 @@ void ShapesApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	} else if ((btnState & MK_RBUTTON) != 0) {
+	}
+	else if ((btnState & MK_RBUTTON) != 0) {
 		// Make each pixel correspond to 0.2 unit in the scene.
 		float dx = 0.05f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.05f * static_cast<float>(y - mLastMousePos.y);
@@ -418,76 +420,6 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-/// 构建CBV用来存储(若有3个帧资源, n个渲染项), 创建出3(n+1)个CBV, 且创建出常数缓存视图堆
-void ShapesApp::BuildDescriptorHeaps()
- {
-	UINT objCount = (UINT)mOpaqueRitems.size();// 所有的渲染项数量,此处是n个RenderItem*    
-	UINT numDescriptors = (objCount + 1) * gNumFrameResources;// 总CBV数量等于 (渲染项数量 +1 ) * 帧资源个数 即3n个objectCB+3个PassCB
-	
-	mPassCbvOffset = objCount * gNumFrameResources;// !!!!保存渲染过程(即PASSCB这种CBUFFER)的起始偏移量(因为先3n个ObjectCB,最后才是3个RenderPass)
-
-	// 填充cbvHeapDesc// 借助cbvHeapDesc创建 常数缓存视图堆
-	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
-	cbvHeapDesc.NumDescriptors = numDescriptors;
-	cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	cbvHeapDesc.NodeMask = 0;
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
-}
-
-/// 为3n+1个描述符创建出 "物体CBV" 和 "渲染过程CBV"
-void ShapesApp::BuildConstantBufferViews()
-{
-	/// ********原理介绍********
-	/// 描述符0到描述符n-1包含了 第0个帧资源的"物体CBV"
-	/// 描述符n到描述符2n-1包含了第1个帧资源的"物体CBV"
-	/// 描述符2n到描述符3n-1包含了第2个帧资源的"物体CBV"
-	/// 3n, 3n+1, 3n+2存有第0个,第1个,第2个帧资源的"PASS cbv(即渲染过程CBV)"
-
-	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));//单objctCbuffer字节
-	UINT objCount = (UINT)mOpaqueRitems.size();// 渲染项个数也是物体个数
-
-	// 1. 3个帧资源中每个帧资源中的每一个物体都需要一个对应的CBV
-	for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex) {
-		auto objectCB = mFrameResources[frameIndex]->ObjectCB->Resource();//拿到第几帧资源中 物体Cbuffer裸指针
-
-		// 对于每个帧资源里的每个渲染项(也是每个物体)
-		for (UINT i = 0; i < objCount; ++i) {
-			// 偏移到第i个物体的常量缓存区
-			D3D12_GPU_VIRTUAL_ADDRESS cbAddress = objectCB->GetGPUVirtualAddress();
-			cbAddress += i * objCBByteSize;
-
-			// 偏移到该物体在堆中的 "物体CBV"
-			int heapIndex = frameIndex * objCount + i;//堆序数等于 帧序数*渲染项个数 + i
-			auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());//从全局视图堆里拿句柄
-			handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);//利用视图堆的第一个句柄即堆序数 偏移视图句柄
-			// 填充 "物体" CBVDesc
-			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-			cbvDesc.BufferLocation = cbAddress;
-			cbvDesc.SizeInBytes = objCBByteSize;
-			// 为每个物体创建一个CBV
-			md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
-		}
-	}
-
-	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
-	// 2.  3(n+1)个描述符中的最后3个描述符 依次是每个帧资源持有的 渲染过程CBV(PassCB View)
-	for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex) {
-		auto passCB = mFrameResources[frameIndex]->PassCB->Resource();// 拿到第几帧资源中 渲染过程Cbuffer裸指针
-		D3D12_GPU_VIRTUAL_ADDRESS cbAddress = passCB->GetGPUVirtualAddress();
-
-		// 偏移到在堆中的 "渲染过程CBV"
-		int heapIndex = mPassCbvOffset + frameIndex;// 堆序数等于帧资源序数 + PASSCB起始偏移
-		auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
-		handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
-		// 填充 "渲染过程" CBVDesc
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-		cbvDesc.BufferLocation = cbAddress;
-		cbvDesc.SizeInBytes = passCBByteSize;
-		// 创建出 "渲染过程" CBV
-		md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
-	}
-}
 
 /// 创建根签名
 void ShapesApp::BuildRootSignature()
@@ -797,7 +729,7 @@ void ShapesApp::BuildRenderItems()
 {
 	// 1.1 构建box子几何体的渲染项并存到渲染项总集里
 	auto boxRitem = std::make_unique<RenderItem>();// 构建box子几何体的渲染项
-	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(1,1,1) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));// 初始化一个矩阵填充box渲染项的世界矩阵
+	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(1, 1, 1) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));// 初始化一个矩阵填充box渲染项的世界矩阵
 	boxRitem->ObjCBIndex = 0;// box渲染项设置为1号常数缓存
 	boxRitem->Geo = mGeometries["shapeGeo"].get();// box渲染项里的几何体设置为 几何体无序表的shapeGeo
 	boxRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;// box渲染项图元设置为三角形列表
@@ -889,6 +821,79 @@ void ShapesApp::BuildRenderItems()
 		mOpaqueRitems.push_back(e.get());
 }
 
+/// 构建CBV用来存储(若有3个帧资源, n个渲染项), 创建出3(n+1)个CBV, 且创建出常数缓存视图堆
+void ShapesApp::BuildDescriptorHeaps()
+{
+	UINT objCount = (UINT)mOpaqueRitems.size();// 所有的渲染项数量,此处是n个RenderItem*    
+	UINT numDescriptors = (objCount + 1) * gNumFrameResources;// 总CBV数量等于 (渲染项数量 +1 ) * 帧资源个数 即3n个objectCB+3个PassCB
+
+	mPassCbvOffset = objCount * gNumFrameResources;// !!!!保存渲染过程(即PASSCB这种CBUFFER)的起始偏移量(因为先3n个ObjectCB,最后才是3个RenderPass)
+
+	// 填充cbvHeapDesc// 借助cbvHeapDesc创建 常数缓存视图堆
+	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
+	cbvHeapDesc.NumDescriptors = numDescriptors;
+	cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	cbvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
+}
+
+/// 为3n+1个描述符创建出 "物体CBV" 和 "渲染过程CBV"
+void ShapesApp::BuildConstantBufferViews()
+{
+	/// ********原理介绍********
+	/// 描述符0到描述符n-1包含了 第0个帧资源的"物体CBV"
+	/// 描述符n到描述符2n-1包含了第1个帧资源的"物体CBV"
+	/// 描述符2n到描述符3n-1包含了第2个帧资源的"物体CBV"
+	/// 3n, 3n+1, 3n+2存有第0个,第1个,第2个帧资源的"PASS cbv(即渲染过程CBV)"
+
+	// 0. 预处理,让帧资源中的Objct结构体 255对齐, 并拿到所有渲染项的个数 3n+3,存成一个变量
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));//单objctCbuffer字节
+	UINT objCount = (UINT)mOpaqueRitems.size();// 渲染项个数也是物体个数
+
+	// 1. 核心想法:3个帧资源中每个帧资源中的每一个物体都需要一个对应的CBV, 所以遍历所有FrameResource
+	for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex) {
+		auto objectCB = mFrameResources[frameIndex]->ObjectCB->Resource();//拿到第几帧资源中 物体Cbuffer裸指针, 它其实是1个D3D12资源
+
+		// 对于每个帧资源里的每个渲染项(也是每个物体)
+		for (UINT i = 0; i < objCount; ++i) {
+			// 偏移到第i个物体的常量缓存区
+			D3D12_GPU_VIRTUAL_ADDRESS cbAddress = objectCB->GetGPUVirtualAddress();// 拿单帧资源里单个物体CB的 GPU地址
+			cbAddress += i * objCBByteSize;// 偏移到 第i帧资源中第i个渲染项(也是第i个物体)的GPU地址
+
+			// 偏移到该物体在堆中的 "物体CBV"
+			int heapIndex = frameIndex * objCount + i;//堆序数(也是偏移个数)等于 帧序数*渲染项个数 + i
+			auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());//从mCBVHeap里拿句柄
+			handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);// 对全局CBVHeap里的具备执行偏移, 偏移个数为之前计算好的heapIndex
+			// 填充 "物体" CBVDesc
+			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+			cbvDesc.BufferLocation = cbAddress;
+			cbvDesc.SizeInBytes = objCBByteSize;
+			// 为每个物体创建一个CBV
+			md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
+		}
+	}
+
+	// 2.  3(n+1)个描述符中的最后3个描述符 依次是每个帧资源持有的 渲染过程CBV(PassCB View)
+	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+	for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex) {
+		auto passCB = mFrameResources[frameIndex]->PassCB->Resource();// 拿到第几帧资源中 有关RenderPass的Cbuffer裸指针
+		D3D12_GPU_VIRTUAL_ADDRESS cbAddress = passCB->GetGPUVirtualAddress();// 拿到这个D3D12资源的GPU地址
+
+		// 偏移到在堆中的 "渲染过程CBV"
+		int heapIndex = mPassCbvOffset + frameIndex;// 堆序数(也就是偏移个数) 等于帧资源序数 + PASSCB起始偏移(mPassCbvOffset已在BuildDesciptorHeaps函数里写过值了)
+		auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
+		handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
+
+		// 填充 "渲染过程" CBVDesc
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+		cbvDesc.BufferLocation = cbAddress;
+		cbvDesc.SizeInBytes = passCBByteSize;
+		// 创建出 "渲染过程" CBV
+		md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
+	}
+}
+
 /// 绘制已成功加工过的所有渲染项
 void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
@@ -915,5 +920,3 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
 }
-
-
