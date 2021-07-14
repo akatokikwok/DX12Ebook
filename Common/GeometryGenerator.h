@@ -104,12 +104,9 @@ public:
 	/// 生成圆台的基本思路是遍历每个环, 并生成位于环上的各个顶点
 	MeshData CreateCylinder(float bottomRadius, float topRadius, float height, uint32 sliceCount,/*切片数量*/ uint32 stackCount/*层数*/);
 
-	///<summary>
-	/// Creates an mxn grid in the xz-plane with m rows and n columns, centered
-	/// at the origin with the specified width and depth.
+	
 	/// 创建栅格,用来绘制水波荡漾
 	/// 待栅格创建后,可以从MeshData里获取所需顶点, 根据顶点的高度(即y坐标)把平坦的栅格变为表现山峰起伏的曲面
-	///</summary>
 	MeshData CreateGrid(float width, float depth, uint32 m, uint32 n);
 
 	///<summary>

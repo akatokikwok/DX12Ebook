@@ -27,7 +27,7 @@ struct PassConstants
     float DeltaTime = 0.0f;
 };
 
-// 绘制山峰/波浪的顶点结构体型, 此Vertex型位于帧资源.h里
+// 数据源vertices结构体; 绘制山峰/波浪的顶点结构体型, 此Vertex型位于帧资源.h里
 struct Vertex
 {
     DirectX::XMFLOAT3 Pos;
