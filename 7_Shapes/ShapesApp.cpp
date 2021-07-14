@@ -203,7 +203,7 @@ void ShapesApp::OnResize()
 /// 这里还需要额外处理CPU端第n帧的帧资源
 void ShapesApp::Update(const GameTimer& gt)
 {
-	OnKeyboardInput(gt);
+	OnKeyboardInput(gt);// 按下键盘1 切换线框
 	UpdateCamera(gt);
 
 	//**************CPU端处理第n帧的算法*********************
@@ -235,8 +235,7 @@ void ShapesApp::Draw(const GameTimer& gt)
 	// 复用命令列表内存(需要分配器和PSO),此项目里设置了2种PSO
 	if (mIsWireframe) {
 		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
-	}
-	else {
+	} 	else {
 		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
 	}
 
@@ -267,7 +266,7 @@ void ShapesApp::Draw(const GameTimer& gt)
 	int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;// 渲染过程CBV索引等于 mPassCBVOffset + 当前帧序数
 	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 	passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
-	mCommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);// 在命令列表里设置 DescriptorTable(需要具体的cbv句柄)
+	mCommandList->SetGraphicsRootDescriptorTable(1/*这里是1,0在DrawRenderItems里为ObjectCB设置过了*/, passCbvHandle);// 在命令列表里设置 DescriptorTable(需要具体的cbv句柄)
 
 	// 4.3 绘制所有已经成功加工过的渲染项, 指定要渲染的目标缓存
 	DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
@@ -325,8 +324,7 @@ void ShapesApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	}
-	else if ((btnState & MK_RBUTTON) != 0) {
+	} 	else if ((btnState & MK_RBUTTON) != 0) {
 		// Make each pixel correspond to 0.2 unit in the scene.
 		float dx = 0.05f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.05f * static_cast<float>(y - mLastMousePos.y);
@@ -692,7 +690,7 @@ void ShapesApp::BuildPSOs()
 		mShaders["opaquePS"]->GetBufferSize()
 	};
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	opaquePsoDesc.RasterizerState.FillMode =  D3D12_FILL_MODE_SOLID;
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.SampleMask = UINT_MAX;
@@ -907,8 +905,8 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());// 设置管线索引缓存(需要几何体内部索引缓存视图)
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);// 设置图元
 
-		// 偏移到此帧里渲染项中的CBV视图
-		// 为了绘制此前帧资源 及 当前物体, 需要偏移至 视图堆中对应的CBV
+		// 计算偏移到 第i个renderitem里的 物体CBV;
+		// CBV索引 == 帧资源序数 * 渲染项个数 + 第i个渲染项内部的第几号缓存
 		UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;//CBV索引 == 帧资源序数*渲染项个数 + 第i个渲染项内部的第几号缓存
 		auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());// 拿到全局视图堆句柄
 		cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);// 偏移到堆中指定 CBV序数的 CBV
