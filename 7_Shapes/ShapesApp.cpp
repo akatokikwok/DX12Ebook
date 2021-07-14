@@ -103,7 +103,7 @@ private:
 
 	PassConstants mMainPassCB;// PassConstants型常数缓存实例
 
-	UINT mPassCbvOffset = 0;// "渲染过程"(PassCB)的视图起始偏移量
+	UINT mPassCbvOffset = 0;// "渲染过程"(PassCB)的视图起始偏移量 ;保存渲染过程(即PASSCB这种CBUFFER)的起始偏移量(因为先3n个ObjectCB,最后才是3个RenderPass)
 
 	bool mIsWireframe = false;// 线框模式
 
@@ -420,19 +420,19 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 
 /// 构建CBV用来存储(若有3个帧资源, n个渲染项), 创建出3(n+1)个CBV, 且创建出常数缓存视图堆
 void ShapesApp::BuildDescriptorHeaps()
-{
-	UINT objCount = (UINT)mOpaqueRitems.size();// 所有的渲染项数量    
-	UINT numDescriptors = (objCount + 1) * gNumFrameResources;// 总CBV数量等于 (渲染项数量 +1 ) * 帧资源个数
-	mPassCbvOffset = objCount * gNumFrameResources;// !!!!保存渲染过程(即PASSCB这种CBUFFER)的起始偏移量
-	// 填充cbvHeapDesc
+ {
+	UINT objCount = (UINT)mOpaqueRitems.size();// 所有的渲染项数量,此处是n个RenderItem*    
+	UINT numDescriptors = (objCount + 1) * gNumFrameResources;// 总CBV数量等于 (渲染项数量 +1 ) * 帧资源个数 即3n个objectCB+3个PassCB
+	
+	mPassCbvOffset = objCount * gNumFrameResources;// !!!!保存渲染过程(即PASSCB这种CBUFFER)的起始偏移量(因为先3n个ObjectCB,最后才是3个RenderPass)
+
+	// 填充cbvHeapDesc// 借助cbvHeapDesc创建 常数缓存视图堆
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
 	cbvHeapDesc.NumDescriptors = numDescriptors;
 	cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	cbvHeapDesc.NodeMask = 0;
-	// 借助cbvHeapDesc创建 常数缓存视图堆
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc,
-		IID_PPV_ARGS(&mCbvHeap)));
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
 /// 为3n+1个描述符创建出 "物体CBV" 和 "渲染过程CBV"
@@ -797,7 +797,7 @@ void ShapesApp::BuildRenderItems()
 {
 	// 1.1 构建box子几何体的渲染项并存到渲染项总集里
 	auto boxRitem = std::make_unique<RenderItem>();// 构建box子几何体的渲染项
-	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));// 初始化一个矩阵填充box渲染项的世界矩阵
+	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(1,1,1) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));// 初始化一个矩阵填充box渲染项的世界矩阵
 	boxRitem->ObjCBIndex = 0;// box渲染项设置为1号常数缓存
 	boxRitem->Geo = mGeometries["shapeGeo"].get();// box渲染项里的几何体设置为 几何体无序表的shapeGeo
 	boxRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;// box渲染项图元设置为三角形列表
@@ -805,7 +805,6 @@ void ShapesApp::BuildRenderItems()
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;// box渲染项索引数量设置为 子几何体"box"的起始索引
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;// box渲染项索引数量设置为 子几何体"box"的基准地址
 	mAllRitems.push_back(std::move(boxRitem));// 把box渲染项存到 总渲染项里
-
 
 
 	// 1.2 构建gridx子几何体的渲染项并存到渲染项总集里    
