@@ -223,12 +223,12 @@ struct MeshGeometry
 
 struct Light
 {
-	DirectX::XMFLOAT3 Strength = { 0.5f, 0.5f, 0.5f };
-	float FalloffStart = 1.0f;                          // point/spot light only
-	DirectX::XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f };// directional/spot light only
-	float FalloffEnd = 10.0f;                           // point/spot light only
-	DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };  // point/spot light only
-	float SpotPower = 64.0f;                            // spot light only
+	DirectX::XMFLOAT3 Strength = { 0.5f, 0.5f, 0.5f };  // 光源的颜色
+	float FalloffStart = 1.0f;                          // 仅供点光\聚光灯使用
+	DirectX::XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f };// 仅供平行光\聚光灯使用
+	float FalloffEnd = 10.0f;                           // 仅供点光\聚光灯使用
+	DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };  // 仅供点光\聚光灯使用
+	float SpotPower = 64.0f;                            // 仅供聚光灯使用
 };
 
 #define MaxLights 16
@@ -256,18 +256,18 @@ struct Material
 	// 漫反射纹理位于SRV堆中的索引, 默认为-1
 	int DiffuseSrvHeapIndex = -1;
 
-	// Index into SRV heap for normal texture.
+	// 法线纹理位于SRV堆中的索引,默认为-1
 	int NormalSrvHeapIndex = -1;
 
 	// "脏标记", 用以表示本材质已有变动,提示更新常数缓存,默认为3(帧资源个数);
 	// 每个帧资源都持有一个材质常量, 所以要对所有帧资源执行更新, 所以这里把"脏标记" 等价于 帧资源个数
-	int NumFramesDirty = gNumFrameResources;
+	int NumFramesDirty = gNumFrameResources;// 默认为3(即帧资源个数)
 
 	// 用于shader着色的 "材质常量缓存数据"
 	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };// 漫反射率
 	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };// 菲涅尔系数(就是施利克公式里的RF(0°))(和粗糙度一起用于控制镜面光)
 	float Roughness = .25f;// 粗糙度(和菲涅尔系数一起用于控制镜面光),越大越粗糙
-	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();// 材质变换矩阵
+	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();// Material的 变换矩阵
 };
 
 struct Texture
