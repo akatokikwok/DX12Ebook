@@ -111,15 +111,14 @@ private:
 
 	RenderItem* mWavesRitem = nullptr;// 波浪专属渲染项
 
-	// List of all the render items.
-	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
+	std::vector<std::unique_ptr<RenderItem>> mAllRitems;// 存放全局所有的渲染项,不同的渲染项有各自不同的绘制目的,并结合在不同的PSO里
 
 	// Render items divided by PSO.
 	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
 
 	std::unique_ptr<Waves> mWaves;
 
-	PassConstants mMainPassCB;
+	PassConstants mMainPassCB;// 主Pass结构体, 作为数据源填充 与当前帧资源关联的 PassCB用
 
 	bool mIsWireframe = false;
 
@@ -171,29 +170,29 @@ LandAndWavesApp::~LandAndWavesApp()
 
 bool LandAndWavesApp::Initialize()
 {
+	// 先检查并执行基类的Initialize
 	if (!D3DApp::Initialize())
 		return false;
-
-	// Reset the command list to prep for initialization commands.
+	// 记得重置命令列表,复用内存, 为初始化命令做好准备
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
+	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);// 额外的1步,需要在初始化时候就构建一个波浪
 
-	BuildRootSignature();
-	BuildShadersAndInputLayout();
-	BuildLandGeometry();
-	BuildWavesGeometryBuffers();
-	BuildRenderItems();
-	BuildRenderItems();
-	BuildFrameResources();
-	BuildPSOs();
+	BuildRootSignature();		 // 利用根参数(选型为描述符表),创建根签名
+	BuildShadersAndInputLayout();// 编译HLSL shader且初始化输入布局
+	BuildLandGeometry();		 // 创建几何体缓存, 缓存绘制所需参数, 以及绘制物体的具体过程(这里是山峰),技术原理详见函数
+	BuildWavesGeometryBuffers(); // 同上,建立波浪的几何体
+	BuildRenderItems();			 // 构建各种几何体的渲染项, 并存到渲染项总集
+	//BuildRenderItems();		 //
+	BuildFrameResources();		 // 有了前面的渲染项数据,构建3个FrameResource, 其中passCount为1, objCount为渲染项个数
+	BuildPSOs();				 //  创建2种管线状态
 
-	// Execute the initialization commands.
+	// 关闭上述的命令列表的记录,在队列中执行命令
 	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-	// Wait until initialization is complete.
+	// 同步强制CPU等待GPU操作,刷新队列,等待GPU处理完所有事(使用了围栏技术)
 	FlushCommandQueue();
 
 	return true;
@@ -210,15 +209,16 @@ void LandAndWavesApp::OnResize()
 
 void LandAndWavesApp::Update(const GameTimer& gt)
 {
-	OnKeyboardInput(gt);
-	UpdateCamera(gt);
+	OnKeyboardInput(gt);// 每帧实时监测 按下的键位,如果按下1,则更新影响绘制为线框模式的mIsWireFrame字段
+	UpdateCamera(gt);   // 每帧实时监测 更新字段 Float4x4 mView
 
-	// Cycle through the circular frame resource array.
-	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
-	mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+	//**************CPU端处理第n帧的算法*********************
 
-	// Has the GPU finished processing the commands of the current frame resource?
-	// If not, wait until the GPU has completed commands up to this fence point.
+	// 循环往复获取帧资源数组中的 元素frameResource指针
+	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources; // 更新当前使用的FrameResource序数
+	mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();		  // 当前用的帧资源指针
+
+	// 监测GPU是否执行完当前帧命令, 若还在执行中就强令CPU等待, 直到GPU抵达围栏点
 	if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence) {
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
 		ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
@@ -226,6 +226,11 @@ void LandAndWavesApp::Update(const GameTimer& gt)
 		CloseHandle(eventHandle);
 	}
 
+	/// 每个FrameResource都有uploader,用以为场景里的每个RenderItem存储RenderPass中的常量以及Object中的常量,WaveVb动态顶点缓存
+	/// 1个渲染项对应1个物体!!!!; 3个帧资源,n个渲染项,则
+	/// 公式是:若有3个帧资源和n个渲染项, 则对应有3n个ObjectCB和3个PassCB
+
+	// 更新 3种关联 当前使用帧资源的Uploader资源 (此处是2种常数缓存,和1种动态顶点缓存 )
 	UpdateObjectCBs(gt);
 	UpdateMainPassCB(gt);
 	UpdateWaves(gt);
@@ -233,69 +238,60 @@ void LandAndWavesApp::Update(const GameTimer& gt)
 
 void LandAndWavesApp::Draw(const GameTimer& gt)
 {
+	// 1.拿取当前FrameResource里的分配器并重置
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
-
-	// Reuse the memory associated with command recording.
-	// We can only reset when the associated command lists have finished execution on the GPU.
 	ThrowIfFailed(cmdListAlloc->Reset());
-
-	// A command list can be reset after it has been added to the command queue via ExecuteCommandList.
-	// Reusing the command list reuses memory.
+	// 1.2 由于管线在初始化阶段被设置为多种,所以可以自由选择哪种流水线;根据是否启用线框模式,选择把命令列表重置为哪一种流水线
 	if (mIsWireframe) {
 		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
-	} else {
+	}
+	else {
 		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
 	}
-
+	// 1.3 设置视口和裁剪矩形
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
-
-	// Indicate a state transition on the resource usage.
+	// 2. 依据资源的使用用途 指示其状态切换,此处把资源(后台缓存)从呈现切换为渲染目标状态
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
-	// Clear the back buffer and depth buffer.
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET)
+	);
+	// 3.1 清除后台缓存(渲染目标) 和 深度缓存
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
-	// Specify the buffers we are going to render to.
+	// 3.2 在管线上设置 欲渲染的目标缓存区(此处是后台缓存), 需要两个视图(RTV和DSV)的句柄(偏移查找出来)
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
+	// 此处不再需要像上一个demo意义,依赖于CBVHeap
+	//ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
+	//mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	// 4.1 命令列表设置根签名
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	// !!这里与以往的技术不一样!
-	// 绑定"渲染过程"所用的常数缓存,在每个"渲染过程"里,这段代码只需要执行一次
-	// SetGraphicsRootConstantBufferView函数 以传递参数形式把CBV和某个root descriptor相绑定
-	auto passCB = mCurrFrameResource->PassCB->Resource();//拿到渲染过程裸指针
+	// 4.2 !!这里与以往的技术不一样!
+	// 绑定"RenderPassCB"所用的常数缓存,在每个"RenderPassCB"里,这段代码只需要执行一次
+	// 借助函数 SetGraphicsRootConstantBufferView() 以传递参数形式把CBV和某个 "root descriptor" 相绑定
+	auto passCB = mCurrFrameResource->PassCB->Resource(); // 先拿取当前FrameResource下的上传资源"PassCB"裸指针, 其实就是1个ID3D12Resouce* 
 	mCommandList->SetGraphicsRootConstantBufferView(
 		1,/*位于shader中的槽位*/
 		passCB->GetGPUVirtualAddress()/*常数缓存的虚拟地址*/
 	);
-
-	// 按给定的渲染项集 以索引进行绘制
+	// 5. 绘制所有已经成功加工过的渲染项, 指定要渲染的目标缓存,按给定的渲染项集 以索引进行绘制
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
-
-	// Indicate a state transition on the resource usage.
+	// 6. 切换资源从渲染目标切换为呈现状态
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
-
-	// Done recording commands.
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT)
+	);
+	// 6.1 结束命令记录,组建命令列表数组并添加到队列真正执行命令
 	ThrowIfFailed(mCommandList->Close());
-
-	// Add the command list to the queue for execution.
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
-	// Swap the back and front buffers
+	// 7. 交换交换链里前后台呈现图像
 	ThrowIfFailed(mSwapChain->Present(0, 0));
 	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
-
-	// Advance the fence value to mark commands up to this fence point.
+	// 8. 更新当前frameresource里的围栏 为 基类自增后的围栏, 把命令标记到围栏点
 	mCurrFrameResource->Fence = ++mCurrentFence;
-
-	// Add an instruction to the command queue to set a new fence point. 
-	// Because we are on the GPU timeline, the new fence point won't be 
-	// set until the GPU finishes processing all the commands prior to this Signal().
+	// 8.1 向命令队列添加一条指令专门用来设置一个新的围栏点
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
@@ -325,7 +321,8 @@ void LandAndWavesApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	} else if ((btnState & MK_RBUTTON) != 0) {
+	}
+	else if ((btnState & MK_RBUTTON) != 0) {
 		// Make each pixel correspond to 0.2 unit in the scene.
 		float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
@@ -365,19 +362,21 @@ void LandAndWavesApp::UpdateCamera(const GameTimer& gt)
 	XMStoreFloat4x4(&mView, view);
 }
 
+/// 更新与帧资源关联的物体CB,
 void LandAndWavesApp::UpdateObjectCBs(const GameTimer& gt)
 {
-	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+	auto currObjectCB = mCurrFrameResource->ObjectCB.get();// 拿取当前帧资源里的物体CB指针
+	// 遍历每个渲染项 (单个渲染项含有单次绘制所有绘制物数据)
 	for (auto& e : mAllRitems) {
-		// Only update the cbuffer data if the constants have changed.  
-		// This needs to be tracked per frame resource.
+		// 只要  渲染项里的脏标记(初始值等于帧资源个数3)存在  就必须对所有RenderItem执行更新 
+		// 原理是 取出渲染项里的world加工一下 把它当做数据源 借助上传堆函数CopyData() 把world填充进 当前帧资源的currObjectCB里,并注销一次脏标记,对下一个渲染项进行处理
 		if (e->NumFramesDirty > 0) {
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 
 			ObjectConstants objConstants;
 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
 
-			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+			currObjectCB->CopyData(e->ObjCBIndex, objConstants);// 单个渲染项对应单个物体
 
 			// Next FrameResource need to be updated too.
 			e->NumFramesDirty--;
@@ -389,12 +388,11 @@ void LandAndWavesApp::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
-
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
 	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
 	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
-
+	// 给字段PassConstants型 mMainPassCB做值
 	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
 	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
 	XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
@@ -409,14 +407,15 @@ void LandAndWavesApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.TotalTime = gt.TotalTime();
 	mMainPassCB.DeltaTime = gt.DeltaTime();
 
+	// 原理是 把字段当做数据源 借助上传堆函数CopyData() 把其携带的所有数据填充进 当前帧资源的currPassCB里
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-/// 每一帧中,都以此函数模拟波浪并更新"帧资源"中的波浪 "动态顶点缓存"
+/// 和UpdateObjctCB\UpdateMainPassCB等关联帧资源的函数类似, 每一帧中,都以此函数模拟波浪并更新"帧资源"中的波浪 "动态顶点缓存"
 void LandAndWavesApp::UpdateWaves(const GameTimer& gt)
 {
-	// 此处逻辑设置每隔0.25秒 生成1个随机波浪
+	// 此处数学逻辑逻辑设置每隔0.25秒 生成1个随机波浪
 	static float t_base = 0.0f;
 	if ((mTimer.TotalTime() - t_base) >= 0.25f) {
 		t_base += 0.25f;
@@ -429,66 +428,64 @@ void LandAndWavesApp::UpdateWaves(const GameTimer& gt)
 		mWaves->Disturb(i, j, r);
 	}
 
-	// 调用波浪对象里的自动更新
+	// 调用波浪对象里的Update()处理计算波浪的顶点数据
 	mWaves->Update(gt.DeltaTime());
 
 	/* 使用波浪数学方程计算出的新数据来更新"波浪动态顶点缓存"*/
-	auto currWavesVB = mCurrFrameResource->WavesVB.get();// 先拿到当前帧资源内部的波浪动态顶点缓存
+	auto currWavesVB = mCurrFrameResource->WavesVB.get();// 先拿到当前帧资源内部的WavesVB的裸指针
 	for (int i = 0; i < mWaves->VertexCount(); ++i)// 遍历波浪对象的每个点
 	{
 		// 遍历到的第i个波浪点的数据 就 填充给 1个新点v
 		Vertex v;
 		v.Pos = mWaves->Position(i);
 		v.Color = XMFLOAT4(DirectX::Colors::Blue);
-		// 把第i个新点v作为数据源, 以UploadBuffer::CopyData形式真正拷贝到帧资源里的"波浪动态顶点缓存"里
+		// 把第i个新点v作为数据源, 并真正拷贝到 当前这个FrameResource里的"WavesVB"里
 		currWavesVB->CopyData(i, v);
 	}
 
-	/* 波浪动态顶点缓存填充到 波浪渲染项里的几何体中去*/
+	/* 最后记得给 波浪专属渲染项 里Geo管理员里的顶点数据 要被这个帧资源里的顶点数据 更新并填充*/
 	mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
 }
 
 void LandAndWavesApp::BuildRootSignature()
 {
-	/// 不再使用此前提到过的描述符表,而是改用2个根描述符
+	/// 不再使用此前提到过的描述符表,而是改用2个Root Constant,好处就是借此摆脱CBVHeap从而直接绑定CBV
 
-	// Root parameter can be a table, root descriptor or root constants.
+	// RootParameter可以选型为 table, root descriptor or root constants的任意一种.这里指定为根常量
 	CD3DX12_ROOT_PARAMETER slotRootParameter[2];
-
-	// 根参数选型为根描述符, 所以此处直接创建root CBV
-	// 指定此根参数将要绑定的shader寄存器,分别为b0 和 b1
+	// 直接创建2种根CBV,借助InitAsConstantBufferView辅助函数可直接创建CBV, 并指定到对应的HLSL槽位
 	slotRootParameter[0].InitAsConstantBufferView(0);// 物体的CBV
 	slotRootParameter[1].InitAsConstantBufferView(1);// 渲染过程CBV
 
-	// 利用异体构造器, 根签名即是一系列根参数的组合
+	// 根签名即是一系列根参数的组合, 利用异体构造器 rootSigDesc
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
 		2, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
 	);
 
-	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	// 利用内存块来创建根签名
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
 		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf()
 	);
-
 	if (errorBlob != nullptr) {
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	}
 	ThrowIfFailed(hr);
-
 	ThrowIfFailed(md3dDevice->CreateRootSignature(
 		0,
 		serializedRootSig->GetBufferPointer(),
 		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+		IID_PPV_ARGS(mRootSignature.GetAddressOf()))
+	);
 }
 
 void LandAndWavesApp::BuildShadersAndInputLayout()
 {
+	// mShaders这张<string -- ID3D12Blob>无序map被填充
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
-
+	// 构建输入布局字段
 	mInputLayout =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -499,6 +496,12 @@ void LandAndWavesApp::BuildShadersAndInputLayout()
 /// 待栅格Geometry创建后, 可以从MeshData里获取所需顶点, 根据顶点的高度(即y坐标)把平坦的栅格变为表现山峰起伏的曲面
 void LandAndWavesApp::BuildLandGeometry()
 {
+	/// 原理,1.先用几何生成器生成meshData,2. 开辟出专门的数据源变量, 然后用这个遍历meshData按照算法去填充顶点数据源vertices
+	/// 3.预备计算1下 顶点和索引的2个数据源的字节大小 4.构造1个几何管理员geo, 并起名
+	/// 5.做值过程;结合之前的数据源 给管理员geo的VertexBufferCPU/IndexBufferCPU/VertexBufferGPU/IndexBufferGPU/填充 管理员geo 的各项属性(单顶点字节偏移, 总顶点字节, 索引格式, 总索引字节)
+	/// 6. 构建1个submesh并填充 然后把submesh的数据更新至管理员 geo->DrawArgs["grid"]
+	/// 7.mGeometries["landGeo"] = std::move(geo); 全局几何体的map被更新
+	// =========================================================
 	// 先初始化一个栅格MeshData grid
 	// 目的是给别人提供几何体生成器里内部那些点的meshdata
 	GeometryGenerator geoGen;
@@ -523,23 +526,25 @@ void LandAndWavesApp::BuildLandGeometry()
 		if (vertices[i].Pos.y < -10.0f) {
 			// 沙滩黄色
 			vertices[i].Color = XMFLOAT4(1.0f, 0.96f, 0.62f, 1.0f);
-		} else if (vertices[i].Pos.y < 5.0f) {
+		}
+		else if (vertices[i].Pos.y < 5.0f) {
 			// 浅黄绿色
 			vertices[i].Color = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
-		} else if (vertices[i].Pos.y < 12.0f) {
+		}
+		else if (vertices[i].Pos.y < 12.0f) {
 			// 深黄绿色
 			vertices[i].Color = XMFLOAT4(0.1f, 0.48f, 0.19f, 1.0f);
-		} else if (vertices[i].Pos.y < 20.0f) {
+		}
+		else if (vertices[i].Pos.y < 20.0f) {
 			// 深棕色
 			vertices[i].Color = XMFLOAT4(0.45f, 0.39f, 0.34f, 1.0f);
-		} else {
+		}
+		else {
 			// 白雪皑皑
 			vertices[i].Color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 		}
 	}
 	// 结束了for之后, 此时数据源 已经被初始化,有值了,前面都是为 vertices山峰顶点集做值
-
-
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);		  // 计算数据源的 顶点缓存字节数 == 山体点数 * 单山体点字节
 	std::vector<std::uint16_t> indices = grid.GetIndices16();
@@ -685,64 +690,63 @@ void LandAndWavesApp::BuildFrameResources()
 {
 	for (int i = 0; i < gNumFrameResources; ++i) {
 		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-			1, (UINT)mAllRitems.size(), mWaves->VertexCount()));
+			1/*1个passCB*/, (UINT)mAllRitems.size()/*objctCB数量*/, mWaves->VertexCount())/*波浪里的顶点数*/
+		);
 	}
 }
 
 void LandAndWavesApp::BuildRenderItems()
 {
+	// 1. 构建波浪的渲染项
 	auto wavesRitem = std::make_unique<RenderItem>();
 	wavesRitem->World = MathHelper::Identity4x4();
-	wavesRitem->ObjCBIndex = 0;
-	wavesRitem->Geo = mGeometries["waterGeo"].get();
+	wavesRitem->ObjCBIndex = 0; // 波浪渲染项的objCB被设置为第0个
+	wavesRitem->Geo = mGeometries["waterGeo"].get();// 从全局map里提出这个waterGeo
 	wavesRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	wavesRitem->IndexCount = wavesRitem->Geo->DrawArgs["grid"].IndexCount;
+	wavesRitem->IndexCount = wavesRitem->Geo->DrawArgs["grid"].IndexCount;// Geo->DrawArgs都在此前的BuildWavesGeometryBuffers()里用submesh做过值
 	wavesRitem->StartIndexLocation = wavesRitem->Geo->DrawArgs["grid"].StartIndexLocation;
 	wavesRitem->BaseVertexLocation = wavesRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 
-	mWavesRitem = wavesRitem.get();
+	mWavesRitem = wavesRitem.get();// 波浪渲染项的裸指针
 
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(wavesRitem.get());
-
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(wavesRitem.get());// 把波浪渲染项填到一个渲染项数组mRitemLayer里
+	// 2. 构建栅格(其实就是山峰)的渲染项
 	auto gridRitem = std::make_unique<RenderItem>();
 	gridRitem->World = MathHelper::Identity4x4();
-	gridRitem->ObjCBIndex = 1;
-	gridRitem->Geo = mGeometries["landGeo"].get();
+	gridRitem->ObjCBIndex = 1;// 山峰渲染项的ObjCB被设置为第1个
+	gridRitem->Geo = mGeometries["landGeo"].get();;// 从全局map里提出这个landGeo
 	gridRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
+	gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;// Geo->DrawArgs都在此前的BuildLandGeometryBuffers()里用submesh做过值
 	gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
 	gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());// 把山峰渲染项填到一个渲染项数组mRitemLayer里
 
-	mAllRitems.push_back(std::move(wavesRitem));
+	mAllRitems.push_back(std::move(wavesRitem));// 全局渲染项
 	mAllRitems.push_back(std::move(gridRitem));
 }
 
 void LandAndWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
-	// 单 物体常数 字节(255归一化)
-	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
-	// 取得 物体常数缓存裸指针
-	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));// 把 物体CB结构体 255归一化
+	auto objectCB = mCurrFrameResource->ObjectCB->Resource();// 取得 当前帧资源里物体CB的裸指针, ID3D12Resource* 型
 
-	// 对于每个指定的渲染项而言,需要作出调整
+	// 遍历所有指定的渲染项 对于每个指定的渲染项而言,需要作出调整
 	for (size_t i = 0; i < ritems.size(); ++i) {
 		auto ri = ritems[i];// 第i个渲染项
 
-		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());//设置渲染项里的几何体里的顶点视图到管线
-		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());//设置渲染项里的几何体里的索引视图到管线
-		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);//设置渲染项里的图元类型到管线
+		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView()); //绑定渲染项里 Geo管理员的VertexBufferView到管线
+		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());			 //绑定渲染项里 Geo管理员的IndexBufferView到管线
+		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);				 //绑定渲染项里 图元类型到管线
 
-		// 先拿到 物体常数的 虚拟地址
+		// 先拿到 物体CB的 虚拟地址
 		// 把虚拟地址 偏移到 渲染项里缓存区序号 * 单物体常数字节
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress();
 		objCBAddress += ri->ObjCBIndex * objCBByteSize;
 
-		// SetGraphicsRootConstantBufferView函数 以传递参数形式把CBV和某个root descriptor相绑定
+		// 此处是 SetGraphicsRootConstantBufferView函数 以传递参数形式把物体CBV和某个root descriptor相绑定
 		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
-
 		// 按渲染项绘制
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}

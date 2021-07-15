@@ -825,7 +825,7 @@ void ShapesApp::BuildDescriptorHeaps()
 	UINT objCount = (UINT)mOpaqueRitems.size();// 所有的渲染项数量,此处是n个RenderItem*    
 	UINT numDescriptors = (objCount + 1) * gNumFrameResources;// 总CBV数量等于 (渲染项数量 +1 ) * 帧资源个数 即3n个objectCB+3个PassCB
 
-	mPassCbvOffset = objCount * gNumFrameResources;// !!!!保存渲染过程(即PASSCB这种CBUFFER)的起始偏移量(因为先3n个ObjectCB,最后才是3个RenderPass)
+	mPassCbvOffset = objCount * gNumFrameResources;// !!!!此处写入字段mPassCbvOffset, 保存渲染过程(即PASSCB这种CBUFFER)的起始偏移量(因为先3n个ObjectCB,最后才是3个RenderPass)
 
 	// 填充cbvHeapDesc// 借助cbvHeapDesc创建 常数缓存视图堆
 	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
