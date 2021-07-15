@@ -28,9 +28,9 @@ struct RenderItem
 {
 	RenderItem() = default;
 
-	// World matrix of the shape that describes the object's local space
-	// relative to the world space, which defines the position, orientation,
-	// and scale of the object in the world.
+	//描述物体局部空间的形状的世界矩阵
+	//相对于世界空间，它定义了位置，方向，
+	//和物体在世界上的scale
 	XMFLOAT4X4 World = MathHelper::Identity4x4();
 
 	XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
