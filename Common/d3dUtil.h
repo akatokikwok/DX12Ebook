@@ -256,18 +256,18 @@ struct Material
 	// 漫反射纹理位于SRV堆中的索引, 默认为-1
 	int DiffuseSrvHeapIndex = -1;
 
-	// Index into SRV heap for normal texture.
+	// 法线纹理位于SRV堆中的索引,默认为-1
 	int NormalSrvHeapIndex = -1;
 
 	// "脏标记", 用以表示本材质已有变动,提示更新常数缓存,默认为3(帧资源个数);
 	// 每个帧资源都持有一个材质常量, 所以要对所有帧资源执行更新, 所以这里把"脏标记" 等价于 帧资源个数
-	int NumFramesDirty = gNumFrameResources;
+	int NumFramesDirty = gNumFrameResources;// 默认为3(即帧资源个数)
 
 	// 用于shader着色的 "材质常量缓存数据"
 	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };// 漫反射率
 	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };// 菲涅尔系数(就是施利克公式里的RF(0°))(和粗糙度一起用于控制镜面光)
 	float Roughness = .25f;// 粗糙度(和菲涅尔系数一起用于控制镜面光),越大越粗糙
-	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();// 材质变换矩阵
+	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();// Material的 变换矩阵
 };
 
 struct Texture

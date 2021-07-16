@@ -60,7 +60,7 @@ public:
     // that reference it.  So each frame needs their own cbuffers.
    // std::unique_ptr<UploadBuffer<FrameConstants>> FrameCB = nullptr;
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
-    std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
+    std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;// 新增1个材质CB
     std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
 
     // We cannot update a dynamic vertex buffer until the GPU is done processing
