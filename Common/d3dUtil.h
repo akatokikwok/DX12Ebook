@@ -223,7 +223,7 @@ struct MeshGeometry
 
 struct Light
 {
-	DirectX::XMFLOAT3 Strength = { 0.5f, 0.5f, 0.5f };  // 光源的颜色
+	DirectX::XMFLOAT3 Strength = { 0.5f, 0.5f, 0.5f };  // 光强, 光源的颜色
 	float FalloffStart = 1.0f;                          // 仅供点光\聚光灯使用
 	DirectX::XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f };// 仅供平行光\聚光灯使用
 	float FalloffEnd = 10.0f;                           // 仅供点光\聚光灯使用

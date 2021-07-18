@@ -1,20 +1,14 @@
-ï»¿//***************************************************************************************
-// LightingUtil.hlsl by Frank Luna (C) 2015 All Rights Reserved.
-//
-// Contains API for shader lighting.
-//***************************************************************************************
+#define MaxLights 16 //Ô¤ÏÈÉè¶¨¹âÔ´ÊýÁ¿²»³¬¹ý16¸ö
 
-#define MaxLights 16
-
-// HLSLä¸­ç»“æž„ä½“è¦4Då‘é‡å¯¹é½
+// HLSLÖÐ½á¹¹ÌåÒª4DÏòÁ¿¶ÔÆë
 struct Light
 {
-    float3 Strength;     // å…‰æºçš„é¢œè‰²
-    float  FalloffStart; // ä»…ä¾›ç‚¹å…‰\èšå…‰ç¯ä½¿ç”¨
-    float3 Direction;    // ä»…ä¾›å¹³è¡Œå…‰\èšå…‰ç¯ä½¿ç”¨
-    float  FalloffEnd;   // ä»…ä¾›ç‚¹å…‰\èšå…‰ç¯ä½¿ç”¨
-    float3 Position;     // ä»…ä¾›ç‚¹å…‰\èšå…‰ç¯ä½¿ç”¨
-    float SpotPower;     // ä»…ä¾›èšå…‰ç¯ä½¿ç”¨
+    float3 Strength;     // ¹âÔ´µÄÇ¿¶È
+    float  FalloffStart; // ½ö¹©µã¹â\¾Û¹âµÆÊ¹ÓÃ
+    float3 Direction;    // ½ö¹©Æ½ÐÐ¹â\¾Û¹âµÆÊ¹ÓÃ
+    float  FalloffEnd;   // ½ö¹©µã¹â\¾Û¹âµÆÊ¹ÓÃ
+    float3 Position;     // ½ö¹©µã¹â\¾Û¹âµÆÊ¹ÓÃ
+    float SpotPower;     // ½ö¹©¾Û¹âµÆÊ¹ÓÃ
 };
 
 struct Material
@@ -24,16 +18,16 @@ struct Material
     float  Shininess;
 };
 
-// å¸¸ç”¨è¾…åŠ©å‡½æ•° CalcAttenuation:å®žçŽ°ä¸€ç§çº¿æ€§è¡°å‡å› å­çš„è®¡ç®—æ–¹æ³•
-float CalcAttenuation(float d, float falloffStart, float falloffEnd)
+// ³£ÓÃ¸¨Öúº¯Êý CalcAttenuation:ÊµÏÖÒ»ÖÖÏßÐÔË¥¼õÒò×ÓµÄ¼ÆËã·½·¨
+float CalcAttenuation(float d/*Ë¥¼õ¾àÀë*/, float falloffStart, float falloffEnd)
 {
-    // çº¿æ€§è¡°å‡
+    // ÏßÐÔË¥¼õ
     return saturate((falloffEnd-d) / (falloffEnd - falloffStart));
 }
 
-// æ­¤å‡½æ•°ç”¨äºŽæ¨¡æ‹Ÿè²æ¶…å°”æ–¹ç¨‹çš„æ–½åˆ©å…‹è¿‘ä¼¼,åŸºäºŽå…‰å‘é‡Lä¸Žè¡¨é¢æ³•çº¿n ä¹‹é—´çš„å¤¹è§’
-// æ–½åˆ©å…‹è¿‘ä¼¼æ³•è®¡ç®—è²æ¶…å°” Rf(Î¸) = Rf(0Â°) + (1-Rf(0Â°))(1-COSÎ¸)^5,æ­¤å…¬å¼ä¸­çš„Rf(0Â°)æ˜¯ä»‹è´¨çš„å±žæ€§,ä¸åŒæè´¨æ­¤å€¼å‡ä¸åŒ
-// R0 = ( (n-1)/(n+1) )^2, å¼å­ä¸­çš„næ˜¯æŠ˜å°„çŽ‡.
+// ´Ëº¯ÊýÓÃÓÚÄ£Äâ·ÆÄù¶û·½³ÌµÄÊ©Àû¿Ë½üËÆ,»ùÓÚ¹âÏòÁ¿LÓë±íÃæ·¨Ïßn Ö®¼äµÄ¼Ð½Ç
+// Ê©Àû¿Ë½üËÆ·¨¼ÆËã·ÆÄù¶û Rf(¦È) = Rf(0¡ã) + (1-Rf(0¡ã))(1-COS¦È)^5,´Ë¹«Ê½ÖÐµÄRf(0¡ã)ÊÇ½éÖÊµÄÊôÐÔ,²»Í¬²ÄÖÊ´ËÖµ¾ù²»Í¬
+// R0 = ( (n-1)/(n+1) )^2, Ê½×ÓÖÐµÄnÊÇÕÛÉäÂÊ.
 float3 SchlickFresnel(float3 R0, float3 normal, float3 lightVec)
 {
     float cosIncidentAngle = saturate(dot(normal, lightVec));
@@ -44,103 +38,104 @@ float3 SchlickFresnel(float3 R0, float3 normal, float3 lightVec)
     return reflectPercent;
 }
 
-// åŸºäºŽRoughnessæ¥æ¨¡æ‹Ÿé•œé¢åå°„çš„æ–°å‡½æ•°
-// S(Î¸h)== (m+8/8) * COS^m(Î¸h) == m+8/8 *(nÂ· h)^m ;mè¶Šå¤§è¶Šå…‰æ»‘, é•œé¢ç“£ä¼šå˜çª„
-float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 toEye, Material mat)
+// »ùÓÚRoughnessÀ´Ä£Äâ¾µÃæ·´ÉäµÄÐÂº¯Êý
+// S(¦Èh)== (m+8/8) * COS^m(¦Èh) == m+8/8 *(n¡¤ h)^m ;mÔ½´óÔ½¹â»¬, ¾µÃæ°ê»á±äÕ­
+float3 BlinnPhong(float3 lightStrength/*¹âÇ¿*/, float3 lightVec/*¹âÏòÁ¿*/, float3 normal, float3 toEye, Material mat)
 {
-    const float m = mat.Shininess * 256.0f;// Materialç»“æž„ä½“é‡Œçš„å…‰æ»‘åº¦*256
-    float3 halfVec = normalize(toEye + lightVec);// åŠè§’å‘é‡ ç”±toeye å’Œ å…‰å‘é‡è®¡ç®—
+    const float m = mat.Shininess * 256.0f;// Material½á¹¹ÌåÀïµÄ¹â»¬¶È*256
+    float3 halfVec = normalize(toEye + lightVec);// °ë½ÇÏòÁ¿ ÓÉtoeye ºÍ ¹âÏòÁ¿¼ÆËã
 
-    float roughnessFactor = (m + 8.0f)*pow(max(dot(halfVec, normal), 0.0f), m) / 8.0f;// å…ˆé¢„å®š1ä¸ªç²—ç³™å› å­
-    float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, halfVec, lightVec);// å†ç”¨æ–½åˆ©å…‹è¿‘ä¼¼æ³•è®¡ç®—è²æ¶…å°”å› å­
+    float roughnessFactor = (m + 8.0f)*pow(max(dot(halfVec, normal), 0.0f), m) / 8.0f;// ÏÈÔ¤¶¨1¸ö´Ö²ÚÒò×Ó
+    float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, halfVec, lightVec);// ÔÙÓÃÊ©Àû¿Ë½üËÆ·¨¼ÆËã·ÆÄù¶ûÒò×Ó
 
-    float3 specAlbedo = fresnelFactor*roughnessFactor;// é«˜å…‰ç³»æ•°ç”± è²æ¶…å°”å› å­å’Œç²—ç³™å› å­å åŠ è€Œæ¥
+    float3 specAlbedo = fresnelFactor*roughnessFactor;// ¸ß¹âÏµÊýÓÉ ·ÆÄù¶ûÒò×ÓºÍ´Ö²ÚÒò×Óµþ¼Ó¶øÀ´
 
-    // æœ¬DEMOä½¿ç”¨çš„æ˜¯LDRè€ŒéžHDR,ä½†æ˜¯é•œé¢å…‰ä»ä¼šç•¥å¾®è¶…å‡º[0,1],æ‰€ä»¥è¦ç¼©æ¯”ä¾‹
+    // ±¾DEMOÊ¹ÓÃµÄÊÇLDR¶ø·ÇHDR,µ«ÊÇ¾µÃæ¹âÈÔ»áÂÔÎ¢³¬³ö[0,1],ËùÒÔÒªËõ±ÈÀý
     specAlbedo = specAlbedo / (specAlbedo + 1.0f);
 
-    return (mat.DiffuseAlbedo.rgb + specAlbedo) * lightStrength;// æœ€ç»ˆç»“æžœæ˜¯ (æè´¨çš„æ¼«åå°„ç³»æ•° + é«˜å…‰ç³»æ•°) * å…‰å¼º
+    return (mat.DiffuseAlbedo.rgb + specAlbedo) * lightStrength;// ×îÖÕ½á¹ûÊÇ (²ÄÖÊµÄÂþ·´ÉäÏµÊý + ¸ß¹âÏµÊý) * ¹âÇ¿
 }
-/// é¢å¤–æ³¨æ„!!!!:operator* ä»¤2ä¸ªå‘é‡ç›¸ä¹˜è¡¨ç¤ºçš„æ˜¯"åˆ†é‡ä¹˜æ³•"
+/// ¶îÍâ×¢Òâ!!!!:operator* Áî2¸öÏòÁ¿Ïà³Ë±íÊ¾µÄÊÇ"·ÖÁ¿³Ë·¨"
 
 //---------------------------------------------------------------------------------------
-// Evaluates the lighting equation for directional lights.
+// ÊµÏÖ·½Ïò¹â
 //---------------------------------------------------------------------------------------
-float3 ComputeDirectionalLight(Light L, Material mat, float3 normal, float3 toEye)
+float3 ComputeDirectionalLight(Light L/*¹âÔ´*/, Material mat, float3 normal, float3 toEye/*ÑÛ¾¦Î»ÖÃ*/)
 {
-    // The light vector aims opposite the direction the light rays travel.
+    // ¹âÏòÁ¿Ç¡ºÃÓë¹âÔ´Éä½ø·½ÏòÏà·´
     float3 lightVec = -L.Direction;
 
-    // Scale light down by Lambert's cosine law.
-    float ndotl = max(dot(lightVec, normal), 0.0f);
-    float3 lightStrength = L.Strength * ndotl;
+    //Í¨¹ýÀÊ²®ÓàÏÒ¶¨ÂÉ°´±ÈÀý½µµÍ¹âÇ¿
+    float ndotl = max(dot(lightVec, normal), 0.0f); // ¹âÏòÁ¿ µã³Ë ·¨Ïß¼ÆËã³öÒ»¸ö±ÈÀý
+    float3 lightStrength = L.Strength * ndotl;      // ÀÊ²®ÓàÏÒ¶¨ÂÉ°´±ÈÀý½µµÍ¹âÇ¿
 
+    // ÓÐÁË¹âÇ¿,¾Í¿ÉÒÔ»ùÓÚ´Ö²Ú¶ÈÄ£Äâ¾µÃæ·´Éä
     return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
 }
 
 //---------------------------------------------------------------------------------------
-// Evaluates the lighting equation for point lights.
+// ÊµÏÖµã¹â
 //---------------------------------------------------------------------------------------
-float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
+float3 ComputePointLight(Light L, Material mat, float3 pos/*Î¢±íÃæÄ³Ò»µã*/, float3 normal, float3 toEye)
 {
-    // The vector from the surface to the light.
+    // ¹âÏòÁ¿ (´ÓÎ¢±íÃæ1µãÖ¸Ïò¹âÔ´Î»ÖÃ)
     float3 lightVec = L.Position - pos;
 
-    // The distance from surface to light.
+    // dÊÇÓÉÎ¢±íÃæµ½¹âÔ´µÄ¾àÀë
     float d = length(lightVec);
 
-    // Range test.
+    // µã¹âµÄ·øÉä·¶Î§¼ì²â,ÈçÈô¾àÀë³¬³öµã¹â·øÉäãÐÖµÔò²»·µ»ØÈÎºÎÊýÖµ
     if(d > L.FalloffEnd)
         return 0.0f;
 
-    // Normalize the light vector.
+    // ¹æ·¶»¯´¦Àí¹âÏòÁ¿
     lightVec /= d;
 
-    // Scale light down by Lambert's cosine law.
+    // Í¨¹ýÀÊ²®ÓàÏÒ¶¨ÂÉ°´±ÈÀý½µµÍ¹âÇ¿
     float ndotl = max(dot(lightVec, normal), 0.0f);
-    float3 lightStrength = L.Strength * ndotl;
+    float3 lightStrength = L.Strength * ndotl;// ¼ÆËã³öÀ´1¸ö¹âÇ¿
 
-    // Attenuate light by distance.
-    float att = CalcAttenuation(d, L.FalloffStart, L.FalloffEnd);
-    lightStrength *= att;
+    // ¸ù¾Ý¾àÀë¼ÆËã¹âÁ¿µÄË¥¼õ
+    float att = CalcAttenuation(d, L.FalloffStart, L.FalloffEnd); // ÏÈËã³ö1¸öË¥¼õÏµÊý
+    lightStrength *= att;                                         // ¹âÇ¿³ËÒÔË¥¼õÏµÊýºó×ÔÉíµÃµ½¸üÐÂ
 
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat); // ÓÐÁË¹âÇ¿,¾Í¿ÉÒÔ»ùÓÚ´Ö²Ú¶ÈÄ£Äâ¾µÃæ·´Éä
 }
 
 //---------------------------------------------------------------------------------------
-// Evaluates the lighting equation for spot lights.
+// ¼ÆËã¾Û¹âµÆ
 //---------------------------------------------------------------------------------------
-float3 ComputeSpotLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
+float3 ComputeSpotLight(Light L, Material mat, float3 pos/*Î¢±íÃæ1µã*/, float3 normal, float3 toEye)
 {
-    // The vector from the surface to the light.
+    // ¹âÏòÁ¿
     float3 lightVec = L.Position - pos;
 
-    // The distance from surface to light.
+    // µãµ½¹âÔ´¾àÀë
     float d = length(lightVec);
 
-    // Range test.
+    // ·øÉä·¶Î§¼à²âÒÔ¼°¹æ·¶»¯´¦Àí¹âÏòÁ¿
     if(d > L.FalloffEnd)
         return 0.0f;
-
-    // Normalize the light vector.
     lightVec /= d;
 
-    // Scale light down by Lambert's cosine law.
-    float ndotl = max(dot(lightVec, normal), 0.0f);
-    float3 lightStrength = L.Strength * ndotl;
+    // ÀàËÆ·½Ïò¹âµÄÐÎÊ½, ÏÈÍ¨¹ýÀÊ²®ÓàÏÒ¶¨ÂÉ°´±ÈÀý½µµÍ¹âÇ¿
+    float ndotl = max(dot(lightVec, normal), 0.0f); // ¹âÏòÁ¿ µã³Ë ·¨Ïß¼ÆËã³öÒ»¸ö±ÈÀý
+    float3 lightStrength = L.Strength * ndotl; // ÀÊ²®ÓàÏÒ¶¨ÂÉ°´±ÈÀý½µµÍ¹âÇ¿
 
-    // Attenuate light by distance.
+    // ÔÙ¸ù¾Ýµã¹âµÄÐÎÊ½, ¼ÆËã¹âÁ¿µÄË¥¼õ, °´±ÈÀý½µµÍ¹âÇ¿
     float att = CalcAttenuation(d, L.FalloffStart, L.FalloffEnd);
     lightStrength *= att;
 
-    // Scale by spotlight
+    // ¸ù¾Ý¾Û¹âµÆµÄ¹âÕÕÄ£ÐÍ¶Ô¹âÇ¿Ö´ÐÐËõ·Å´¦Àí
     float spotFactor = pow(max(dot(-lightVec, L.Direction), 0.0f), L.SpotPower);
     lightStrength *= spotFactor;
 
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat); // ÓÐÁË¹âÇ¿,¾Í¿ÉÒÔ»ùÓÚ´Ö²Ú¶ÈÄ£Äâ¾µÃæ·´Éä
 }
 
-float4 ComputeLighting(Light gLights[MaxLights], Material mat,
+/// ´Ëº¯ÊýÓÃÒÔ¼ÆËãÎ¢Æ½ÃæÄ³µãµÄ¹âÕÕ·½³Ì
+/// ¶àÖÖ¹âÔ´ÔÊÐíµþ¼Ó,ÊýÁ¿±»ÏÞÖÆÎª16¸ö,ÔÚ¹âÕÕÊý×éÀïµÄÓÅÏÈ¼¶·Ö±ðÊÇ ·½Ïò¹â>µã¹â>¾Û¹âµÆ
+float4 ComputeLighting(Light gLights[MaxLights]/*¹âÔ´Êý×é*/, Material mat,
                        float3 pos, float3 normal, float3 toEye,
                        float3 shadowFactor)
 {
@@ -148,6 +143,8 @@ float4 ComputeLighting(Light gLights[MaxLights], Material mat,
 
     int i = 0;
 
+///===============Èç¹û³ÌÐòÐèÒªÔÚ²»Í¬½×¶ÎÖ§³Ö²»Í¬ÊýÁ¿µÄ¹âÔ´,ÄÇÃ´Ö»ÐèÒªÉú³ÉÒÔ²»Í¬#defineÀ´¶¨Òå²»Í¬µÄshader¼´¿É==============
+    
 #if (NUM_DIR_LIGHTS > 0)
     for(i = 0; i < NUM_DIR_LIGHTS; ++i)
     {

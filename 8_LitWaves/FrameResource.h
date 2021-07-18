@@ -27,14 +27,11 @@ struct PassConstants
     float DeltaTime = 0.0f;
 
     DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
-
-    // Indices [0, NUM_DIR_LIGHTS) are directional lights;
-    // indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
-    // indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)
-    // are spot lights for a maximum of MaxLights per object.
+    // 光源数组,其中程序以平行光模拟太阳,每一帧都需要重新计算太阳的光照方向
     Light Lights[MaxLights];
 };
 
+// 光照的计算依赖于法线
 struct Vertex
 {
     DirectX::XMFLOAT3 Pos;
