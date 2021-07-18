@@ -1,15 +1,9 @@
-﻿//***************************************************************************************
-// LightingUtil.hlsl by Frank Luna (C) 2015 All Rights Reserved.
-//
-// Contains API for shader lighting.
-//***************************************************************************************
-
-#define MaxLights 16
+﻿#define MaxLights 16 //预先设定光源数量不超过16个
 
 // HLSL中结构体要4D向量对齐
 struct Light
 {
-    float3 Strength;     // 光源的颜色
+    float3 Strength;     // 光源的强度
     float  FalloffStart; // 仅供点光\聚光灯使用
     float3 Direction;    // 仅供平行光\聚光灯使用
     float  FalloffEnd;   // 仅供点光\聚光灯使用
@@ -25,7 +19,7 @@ struct Material
 };
 
 // 常用辅助函数 CalcAttenuation:实现一种线性衰减因子的计算方法
-float CalcAttenuation(float d, float falloffStart, float falloffEnd)
+float CalcAttenuation(float d/*衰减距离*/, float falloffStart, float falloffEnd)
 {
     // 线性衰减
     return saturate((falloffEnd-d) / (falloffEnd - falloffStart));
@@ -46,7 +40,7 @@ float3 SchlickFresnel(float3 R0, float3 normal, float3 lightVec)
 
 // 基于Roughness来模拟镜面反射的新函数
 // S(θh)== (m+8/8) * COS^m(θh) == m+8/8 *(n· h)^m ;m越大越光滑, 镜面瓣会变窄
-float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 toEye, Material mat)
+float3 BlinnPhong(float3 lightStrength/*光强*/, float3 lightVec/*光向量*/, float3 normal, float3 toEye, Material mat)
 {
     const float m = mat.Shininess * 256.0f;// Material结构体里的光滑度*256
     float3 halfVec = normalize(toEye + lightVec);// 半角向量 由toeye 和 光向量计算
@@ -64,83 +58,84 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
 /// 额外注意!!!!:operator* 令2个向量相乘表示的是"分量乘法"
 
 //---------------------------------------------------------------------------------------
-// Evaluates the lighting equation for directional lights.
+// 实现方向光
 //---------------------------------------------------------------------------------------
-float3 ComputeDirectionalLight(Light L, Material mat, float3 normal, float3 toEye)
+float3 ComputeDirectionalLight(Light L/*光源*/, Material mat, float3 normal, float3 toEye/*眼睛位置*/)
 {
-    // The light vector aims opposite the direction the light rays travel.
+    // 光向量恰好与光源射进方向相反
     float3 lightVec = -L.Direction;
 
-    // Scale light down by Lambert's cosine law.
-    float ndotl = max(dot(lightVec, normal), 0.0f);
-    float3 lightStrength = L.Strength * ndotl;
+    //通过朗伯余弦定律按比例降低光强
+    float ndotl = max(dot(lightVec, normal), 0.0f); // 光向量 点乘 法线计算出一个比例
+    float3 lightStrength = L.Strength * ndotl;      // 朗伯余弦定律按比例降低光强
 
+    // 有了光强,就可以基于粗糙度模拟镜面反射
     return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
 }
 
 //---------------------------------------------------------------------------------------
-// Evaluates the lighting equation for point lights.
+// 实现点光
 //---------------------------------------------------------------------------------------
-float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
+float3 ComputePointLight(Light L, Material mat, float3 pos/*微表面某一点*/, float3 normal, float3 toEye)
 {
-    // The vector from the surface to the light.
+    // 光向量 (从微表面1点指向光源位置)
     float3 lightVec = L.Position - pos;
 
-    // The distance from surface to light.
+    // d是由微表面到光源的距离
     float d = length(lightVec);
 
-    // Range test.
+    // 点光的辐射范围检测,如若距离超出点光辐射阈值则不返回任何数值
     if(d > L.FalloffEnd)
         return 0.0f;
 
-    // Normalize the light vector.
+    // 规范化处理光向量
     lightVec /= d;
 
-    // Scale light down by Lambert's cosine law.
+    // 通过朗伯余弦定律按比例降低光强
     float ndotl = max(dot(lightVec, normal), 0.0f);
-    float3 lightStrength = L.Strength * ndotl;
+    float3 lightStrength = L.Strength * ndotl;// 计算出来1个光强
 
-    // Attenuate light by distance.
-    float att = CalcAttenuation(d, L.FalloffStart, L.FalloffEnd);
-    lightStrength *= att;
+    // 根据距离计算光量的衰减
+    float att = CalcAttenuation(d, L.FalloffStart, L.FalloffEnd); // 先算出1个衰减系数
+    lightStrength *= att;                                         // 光强乘以衰减系数后自身得到更新
 
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat); // 有了光强,就可以基于粗糙度模拟镜面反射
 }
 
 //---------------------------------------------------------------------------------------
-// Evaluates the lighting equation for spot lights.
+// 计算聚光灯
 //---------------------------------------------------------------------------------------
-float3 ComputeSpotLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
+float3 ComputeSpotLight(Light L, Material mat, float3 pos/*微表面1点*/, float3 normal, float3 toEye)
 {
-    // The vector from the surface to the light.
+    // 光向量
     float3 lightVec = L.Position - pos;
 
-    // The distance from surface to light.
+    // 点到光源距离
     float d = length(lightVec);
 
-    // Range test.
+    // 辐射范围监测以及规范化处理光向量
     if(d > L.FalloffEnd)
         return 0.0f;
-
-    // Normalize the light vector.
     lightVec /= d;
 
-    // Scale light down by Lambert's cosine law.
-    float ndotl = max(dot(lightVec, normal), 0.0f);
-    float3 lightStrength = L.Strength * ndotl;
+    // 类似方向光的形式, 先通过朗伯余弦定律按比例降低光强
+    float ndotl = max(dot(lightVec, normal), 0.0f); // 光向量 点乘 法线计算出一个比例
+    float3 lightStrength = L.Strength * ndotl; // 朗伯余弦定律按比例降低光强
 
-    // Attenuate light by distance.
+    // 再根据点光的形式, 计算光量的衰减, 按比例降低光强
     float att = CalcAttenuation(d, L.FalloffStart, L.FalloffEnd);
     lightStrength *= att;
 
-    // Scale by spotlight
+    // 根据聚光灯的光照模型对光强执行缩放处理
     float spotFactor = pow(max(dot(-lightVec, L.Direction), 0.0f), L.SpotPower);
     lightStrength *= spotFactor;
 
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat); // 有了光强,就可以基于粗糙度模拟镜面反射
 }
 
-float4 ComputeLighting(Light gLights[MaxLights], Material mat,
+/// 此函数用以计算微平面某点的光照方程
+/// 多种光源允许叠加,数量被限制为16个,在光照数组里的优先级分别是 方向光>点光>聚光灯
+float4 ComputeLighting(Light gLights[MaxLights]/*光源数组*/, Material mat,
                        float3 pos, float3 normal, float3 toEye,
                        float3 shadowFactor)
 {
@@ -148,6 +143,8 @@ float4 ComputeLighting(Light gLights[MaxLights], Material mat,
 
     int i = 0;
 
+///===============如果程序需要在不同阶段支持不同数量的光源,那么只需要生成以不同#define来定义不同的shader即可==============
+    
 #if (NUM_DIR_LIGHTS > 0)
     for(i = 0; i < NUM_DIR_LIGHTS; ++i)
     {
