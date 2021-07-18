@@ -1,2 +1,6 @@
 *.pdf filter=lfs diff=lfs merge=lfs -text
+<<<<<<< HEAD
 *.dds filter=lfs diff=lfs merge=lfs -text
+=======
+*.txt filter=lfs diff=lfs merge=lfs -text
+>>>>>>> ver1.8_Practice
