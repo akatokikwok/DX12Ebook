@@ -327,7 +327,7 @@ void LitWavesApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	} 	else if ((btnState & MK_RBUTTON) != 0) {
+	} else if ((btnState & MK_RBUTTON) != 0) {
 		// Make each pixel correspond to 0.2 unit in the scene.
 		float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
@@ -343,9 +343,10 @@ void LitWavesApp::OnMouseMove(WPARAM btnState, int x, int y)
 	mLastMousePos.y = y;
 }
 
+/// 用来更新太阳方位(即平行光)的数学逻辑
 void LitWavesApp::OnKeyboardInput(const GameTimer& gt)
 {
-	const float dt = gt.DeltaTime();
+	const float dt = gt.DeltaTime();// 获取帧间隔时间
 
 	if (GetAsyncKeyState(VK_LEFT) & 0x8000)
 		mSunTheta -= 1.0f * dt;
@@ -447,13 +448,16 @@ void LitWavesApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.FarZ = 1000.0f;
 	mMainPassCB.TotalTime = gt.TotalTime();
 	mMainPassCB.DeltaTime = gt.DeltaTime();
-	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };// 环境光设置
 
-	XMVECTOR lightDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
+	// 设太阳平行光的朝向是(1, θ, φ),(均为球面座标)
+	// 拿到本次RenderPass里这一刻的光向量,等于-光线; 
+	XMVECTOR lightDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi); //球面座标转xyz
 
-	XMStoreFloat3(&mMainPassCB.Lights[0].Direction, lightDir);
-	mMainPassCB.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
+	XMStoreFloat3(&mMainPassCB.Lights[0].Direction, lightDir);// 把当前光向量数据填充到 光源数组的平行光里去
+	mMainPassCB.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };	  // 光强也手动设置一下
 
+	// mMainPassCB做值结束,现在作为数据源 被拷贝至 当前FrameResource下的PassCB里
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
 }
@@ -497,9 +501,9 @@ void LitWavesApp::BuildRootSignature()
 	CD3DX12_ROOT_PARAMETER slotRootParameter[3];
 
 	// Create root CBV.
-	slotRootParameter[0].InitAsConstantBufferView(0);
-	slotRootParameter[1].InitAsConstantBufferView(1);
-	slotRootParameter[2].InitAsConstantBufferView(2);
+	slotRootParameter[0].InitAsConstantBufferView(0);// 物体
+	slotRootParameter[1].InitAsConstantBufferView(1);// 材质
+	slotRootParameter[2].InitAsConstantBufferView(2);// 渲染Pass
 
 	// A root signature is an array of root parameters.
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -549,8 +553,8 @@ void LitWavesApp::BuildLandGeometry()
 	for (size_t i = 0; i < grid.Vertices.size(); ++i) {
 		auto& p = grid.Vertices[i].Position;
 		vertices[i].Pos = p;
-		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
-		vertices[i].Normal = GetHillsNormal(p.x, p.z);
+		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);// 单独拎出来高度y, 用设计好的高度函数计算这个高度
+		vertices[i].Normal = GetHillsNormal(p.x, p.z);// 计算法线
 	}
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
@@ -768,12 +772,19 @@ void LitWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std:
 
 float LitWavesApp::GetHillsHeight(float x, float z)const
 {
-	return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
+	return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));// 它是f(x,z) =0.3z*sin(0.1x)+0.3x*cos(0.1z)
 }
 
 XMFLOAT3 LitWavesApp::GetHillsNormal(float x, float z)const
 {
-	// n = (-df/dx, 1, -df/dz)
+	// n = (-df/dx, 1, -df/dz). 对f(x,z)分别求偏导数 让两个切向量叉乘得到这个点处的法线
+	/* 点(x, f(x,z), z)的曲面法线为
+	* n(x, z) = ( -ξf/ξx,  1,  -ξf/ξz)即
+	* | -0.03z * cos(0.1x)-0.3cos(0.1z)	|
+	* |				1					|
+	* |	-0.3sin(0.1x)+0.03x*sin(0.1z)   |的转置
+	* 由此可见曲面法线并不具备单位长度,所以在光照之前必须规范化
+	*/
 	XMFLOAT3 n(
 		-0.03f * z * cosf(0.1f * x) - 0.3f * cosf(0.1f * z),
 		1.0f,
