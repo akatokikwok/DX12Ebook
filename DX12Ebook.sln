@@ -3,15 +3,21 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31105.61
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chapter4", "Chapter4\Chapter4.vcxproj", "{F19B3888-DC67-458C-9745-0F8A9F44976F}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "4_OnlyWindow", "Chapter4\Chapter4.vcxproj", "{F19B3888-DC67-458C-9745-0F8A9F44976F}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chapter6", "Chapter6\Chapter6.vcxproj", "{FB1D5F50-08A2-4F0C-8763-F22EE6A5E62E}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "6_D3DBox", "Chapter6\Chapter6.vcxproj", "{FB1D5F50-08A2-4F0C-8763-F22EE6A5E62E}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "7_Shapes", "7_Shapes\7_Shapes.vcxproj", "{9C6D5C14-62AF-4274-A0DE-F67720224AC6}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "7_1_Shapes", "7_Shapes\7_Shapes.vcxproj", "{9C6D5C14-62AF-4274-A0DE-F67720224AC6}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "7_LandAndWaves", "7_LandAndWaves\7_LandAndWaves.vcxproj", "{377D3862-2C9C-49AD-9C99-E5D238FCEC38}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "7_2_LandAndWaves", "7_LandAndWaves\7_LandAndWaves.vcxproj", "{377D3862-2C9C-49AD-9C99-E5D238FCEC38}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "8_LitWaves", "8_LitWaves\8_LitWaves.vcxproj", "{CF6B6D68-EA9B-429A-87D2-CF5CD4B6D583}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "9_Crate", "Chapter 9 Texturing\9_Crate\9_Crate.vcxproj", "{02CDA64C-1AD8-479B-B25D-04C7C23BDD70}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "9_TexWaves", "Chapter 9 Texturing\9_TexWaves\9_TexWaves.vcxproj", "{02346E17-7FD7-49A0-A0E3-756736E9B217}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "9_TexColumns", "Chapter 9 Texturing\9_TexColumns\9_TexColumns.vcxproj", "{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -61,6 +67,30 @@ Global
 		{CF6B6D68-EA9B-429A-87D2-CF5CD4B6D583}.Release|x64.Build.0 = Release|x64
 		{CF6B6D68-EA9B-429A-87D2-CF5CD4B6D583}.Release|x86.ActiveCfg = Release|Win32
 		{CF6B6D68-EA9B-429A-87D2-CF5CD4B6D583}.Release|x86.Build.0 = Release|Win32
+		{02CDA64C-1AD8-479B-B25D-04C7C23BDD70}.Debug|x64.ActiveCfg = Debug|x64
+		{02CDA64C-1AD8-479B-B25D-04C7C23BDD70}.Debug|x64.Build.0 = Debug|x64
+		{02CDA64C-1AD8-479B-B25D-04C7C23BDD70}.Debug|x86.ActiveCfg = Debug|Win32
+		{02CDA64C-1AD8-479B-B25D-04C7C23BDD70}.Debug|x86.Build.0 = Debug|Win32
+		{02CDA64C-1AD8-479B-B25D-04C7C23BDD70}.Release|x64.ActiveCfg = Release|x64
+		{02CDA64C-1AD8-479B-B25D-04C7C23BDD70}.Release|x64.Build.0 = Release|x64
+		{02CDA64C-1AD8-479B-B25D-04C7C23BDD70}.Release|x86.ActiveCfg = Release|Win32
+		{02CDA64C-1AD8-479B-B25D-04C7C23BDD70}.Release|x86.Build.0 = Release|Win32
+		{02346E17-7FD7-49A0-A0E3-756736E9B217}.Debug|x64.ActiveCfg = Debug|x64
+		{02346E17-7FD7-49A0-A0E3-756736E9B217}.Debug|x64.Build.0 = Debug|x64
+		{02346E17-7FD7-49A0-A0E3-756736E9B217}.Debug|x86.ActiveCfg = Debug|Win32
+		{02346E17-7FD7-49A0-A0E3-756736E9B217}.Debug|x86.Build.0 = Debug|Win32
+		{02346E17-7FD7-49A0-A0E3-756736E9B217}.Release|x64.ActiveCfg = Release|x64
+		{02346E17-7FD7-49A0-A0E3-756736E9B217}.Release|x64.Build.0 = Release|x64
+		{02346E17-7FD7-49A0-A0E3-756736E9B217}.Release|x86.ActiveCfg = Release|Win32
+		{02346E17-7FD7-49A0-A0E3-756736E9B217}.Release|x86.Build.0 = Release|Win32
+		{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}.Debug|x64.ActiveCfg = Debug|x64
+		{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}.Debug|x64.Build.0 = Debug|x64
+		{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}.Debug|x86.ActiveCfg = Debug|Win32
+		{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}.Debug|x86.Build.0 = Debug|Win32
+		{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}.Release|x64.ActiveCfg = Release|x64
+		{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}.Release|x64.Build.0 = Release|x64
+		{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}.Release|x86.ActiveCfg = Release|Win32
+		{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
