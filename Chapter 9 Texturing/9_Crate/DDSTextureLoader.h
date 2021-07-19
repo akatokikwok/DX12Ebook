@@ -1,4 +1,4 @@
-//--------------------------------------------------------------------------------------
+﻿//--------------------------------------------------------------------------------------
 // File: DDSTextureLoader.h
 //
 // Functions for loading a DDS texture and creating a Direct3D 11 runtime resource for it
@@ -82,7 +82,13 @@ namespace DirectX
                                       _In_ size_t maxsize = 0,
                                       _Out_opt_ DDS_ALPHA_MODE* alphaMode = nullptr
                                     );
-
+    /*用于读取新加的DDS文件的封装方法
+    * device 设备
+    * cmdList 命令列表
+    * szFileName 欲加载的图片名
+    * texture 返回载有图像的纹理资源
+    * textureUploadHeap 上传堆资源,最后会被复制到默认Heap里
+     */
 	HRESULT CreateDDSTextureFromFile12(_In_ ID3D12Device* device,
 		                               _In_ ID3D12GraphicsCommandList* cmdList,
 		                               _In_z_ const wchar_t* szFileName,
