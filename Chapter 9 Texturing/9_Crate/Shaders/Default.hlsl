@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // Default.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //
 // Default shader, currently supports lighting.
@@ -20,8 +20,8 @@
 // Include structures and functions for lighting.
 #include "LightingUtil.hlsl"
 
-Texture2D    gDiffuseMap : register(t0);
-SamplerState gsamLinear  : register(s0);
+Texture2D    gDiffuseMap : register(t0);// 有1张2D纹理
+SamplerState gsamLinear  : register(s0);// 有1个采样器
 
 
 // Constant data that varies per frame.
@@ -103,6 +103,7 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
+    // 从这张2D纹理里提取此像素的漫反射率 并与 材质常量里的反照率 相乘
     float4 diffuseAlbedo = gDiffuseMap.Sample(gsamLinear, pin.TexC) * gDiffuseAlbedo;
 
     // Interpolating normal can unnormalize it, so renormalize it.
