@@ -1,4 +1,4 @@
-ï»¿//***************************************************************************************
+//***************************************************************************************
 // Default.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //
 // Default shader, currently supports lighting.
@@ -20,8 +20,8 @@
 // Include structures and functions for lighting.
 #include "LightingUtil.hlsl"
 
-Texture2D    gDiffuseMap : register(t0);// æœ‰1å¼ 2Dçº¹ç†
-SamplerState gsamLinear  : register(s0);// æœ‰1ä¸ªé‡‡æ ·å™¨
+Texture2D    gDiffuseMap : register(t0);// ÓĞ1ÕÅ2DÎÆÀí
+SamplerState gsamLinear  : register(s0);// ÓĞ1¸ö²ÉÑùÆ÷
 
 
 // Constant data that varies per frame.
@@ -103,7 +103,7 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    // ä»è¿™å¼ 2Dçº¹ç†é‡Œæå–æ­¤åƒç´ çš„æ¼«åå°„ç‡ å¹¶ä¸ æè´¨å¸¸é‡é‡Œçš„åç…§ç‡ ç›¸ä¹˜
+    // ´ÓÕâÕÅ2DÎÆÀíÀïÌáÈ¡´ËÏñËØµÄÂş·´ÉäÂÊ ²¢Óë ²ÄÖÊ³£Á¿ÀïµÄ·´ÕÕÂÊ Ïà³Ë
     float4 diffuseAlbedo = gDiffuseMap.Sample(gsamLinear, pin.TexC) * gDiffuseAlbedo;
 
     // Interpolating normal can unnormalize it, so renormalize it.
