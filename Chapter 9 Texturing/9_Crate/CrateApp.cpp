@@ -453,6 +453,7 @@ void CrateApp::LoadTextures()
 
 void CrateApp::BuildRootSignature()
 {
+	// 这张纹理table被初始化为SRV 资源
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
@@ -465,14 +466,14 @@ void CrateApp::BuildRootSignature()
 	slotRootParameter[2].InitAsConstantBufferView(1);
 	slotRootParameter[3].InitAsConstantBufferView(2);
 
-	auto staticSamplers = GetStaticSamplers();
+	auto staticSamplers = GetStaticSamplers();// 手动创建出含6个静态采样器的采样器数组
 
-	// A root signature is an array of root parameters.
+	// 根签名即是一系列跟参数
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	// 创建具有4个槽位的根签名,0号指向含有SRV的 描述符table,123号各指向1个常数缓存视图
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
@@ -487,7 +488,8 @@ void CrateApp::BuildRootSignature()
 		0,
 		serializedRootSig->GetBufferPointer(),
 		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+		IID_PPV_ARGS(mRootSignature.GetAddressOf()))
+	);
 }
 
 void CrateApp::BuildDescriptorHeaps()
@@ -687,11 +689,11 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> CrateApp::GetStaticSamplers()
 	// and keep them available as part of the root signature.  
 
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
-		0, // shaderRegister
-		D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
-		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
-		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
-		D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+		0, // shader寄存器
+		D3D12_FILTER_MIN_MAG_MIP_POINT, // 过滤器类型
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // UV的U轴使用的寻址模式
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // UV的V轴使用的寻址模式
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP); // UV的W轴使用的寻址模式
 
 	const CD3DX12_STATIC_SAMPLER_DESC pointClamp(
 		1, // shaderRegister
@@ -720,8 +722,8 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> CrateApp::GetStaticSamplers()
 		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
 		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
 		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressW
-		0.0f,                             // mipLODBias
-		8);                               // maxAnisotropy
+		0.0f,                             // mipmap层级的偏置值
+		8);                               // 最大各向异性值
 
 	const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(
 		5, // shaderRegister
