@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../../Common/d3dUtil.h"
 #include "../../Common/MathHelper.h"
@@ -40,7 +40,7 @@ struct Vertex
 {
     DirectX::XMFLOAT3 Pos;
     DirectX::XMFLOAT3 Normal;
-	DirectX::XMFLOAT2 TexC;
+	DirectX::XMFLOAT2 TexC;// 要为每一个3D三角形关联1个2D纹理
 };
 
 // Stores the resources needed for the CPU to build the command lists

@@ -253,7 +253,7 @@ struct Material
 	// 本材质的第几号缓存区, 可被外部数据源以CopyData()填充更新,默认为-1
 	int MatCBIndex = -1;
 
-	// 漫反射纹理位于SRV堆中的索引, 默认为-1
+	// diffuseMap 在SRV HEAP中的索引, 默认为-1
 	int DiffuseSrvHeapIndex = -1;
 
 	// 法线纹理位于SRV堆中的索引,默认为-1
@@ -270,10 +270,10 @@ struct Material
 	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();// Material的 变换矩阵
 };
 
+// 纹理结构体
 struct Texture
 {
-	// Unique material name for lookup.
-	std::string Name;
+	std::string Name;// 唯一纹理名称
 
 	std::wstring Filename;
 
