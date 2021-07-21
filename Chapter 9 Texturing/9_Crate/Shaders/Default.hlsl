@@ -28,7 +28,7 @@ SamplerState gsamLinear  : register(s0);// ��1��������
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
-    float4x4 gTexTransform;
+    float4x4 gTexTransform;// 每一帧常量 里新增1个纹理transform, 纹理的变换矩阵
 };
 
 // Constant data that varies per material.
@@ -62,14 +62,14 @@ cbuffer cbMaterial : register(b2)
 	float4 gDiffuseAlbedo;
     float3 gFresnelR0;
     float  gRoughness;
-    float4x4 gMatTransform;
+    float4x4 gMatTransform;// 材质的变换矩阵
 };
 
 struct VertexIn
 {
 	float3 PosL    : POSITION;
     float3 NormalL : NORMAL;
-	float2 TexC    : TEXCOORD;
+	float2 TexC    : TEXCOORD;// 新增纹理坐标
 };
 
 struct VertexOut
@@ -77,7 +77,7 @@ struct VertexOut
 	float4 PosH    : SV_POSITION;
     float3 PosW    : POSITION;
     float3 NormalW : NORMAL;
-	float2 TexC    : TEXCOORD;
+    float2 TexC    : TEXCOORD;// 新增纹理坐标
 };
 
 VertexOut VS(VertexIn vin)
@@ -94,9 +94,9 @@ VertexOut VS(VertexIn vin)
     // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
 	
-	// Output vertex attributes for interpolation across triangle.
+	// 为了对三角形进行插值操作, 需要 gTexTransform和gMatTransform这两个变换矩阵
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-    vout.TexC = mul(texC, gMatTransform).xy;
+    vout.TexC = mul(texC, gMatTransform).xy;// 乘完纹理的变换矩阵后得到4D向量, 再与材质的变换矩阵相乘并裁掉zw,最终只要1个2D向量
 
     return vout;
 }

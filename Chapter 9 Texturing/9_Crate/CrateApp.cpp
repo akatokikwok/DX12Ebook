@@ -437,12 +437,14 @@ void CrateApp::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+/// 在初始化阶段利用.dds加载纹理
 void CrateApp::LoadTextures()
 {
 	auto woodCrateTex = std::make_unique<Texture>();// 构建1个纹理的唯一指针
 	// 手动指定其各个成员属性 并 创建出DDS纹理
-	woodCrateTex->Name = "woodCrateTex";
-	woodCrateTex->Filename = L"../../Textures/WoodCrate01.dds";
+	woodCrateTex->Name = "woodCrateTex";// 纹理名叫woodCrateTex
+	woodCrateTex->Filename = L"../../Textures/WoodCrate01.dds";// 纹理的来源是../../Textures/WoodCrate01.dds这个文件
+	// 创建出纹理资源
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), woodCrateTex->Filename.c_str(),
 		woodCrateTex->Resource, woodCrateTex->UploadHeap)
@@ -453,6 +455,7 @@ void CrateApp::LoadTextures()
 
 void CrateApp::BuildRootSignature()
 {
+	// 这张纹理table被初始化为SRV 资源
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
@@ -465,14 +468,14 @@ void CrateApp::BuildRootSignature()
 	slotRootParameter[2].InitAsConstantBufferView(1);
 	slotRootParameter[3].InitAsConstantBufferView(2);
 
-	auto staticSamplers = GetStaticSamplers();
+	auto staticSamplers = GetStaticSamplers();// 手动创建出含6个静态采样器的采样器数组
 
-	// A root signature is an array of root parameters.
+	// 根签名即是一系列跟参数
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	// 创建具有4个槽位的根签名,0号指向含有SRV的 描述符table,123号各指向1个常数缓存视图
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
@@ -487,7 +490,8 @@ void CrateApp::BuildRootSignature()
 		0,
 		serializedRootSig->GetBufferPointer(),
 		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+		IID_PPV_ARGS(mRootSignature.GetAddressOf()))
+	);
 }
 
 void CrateApp::BuildDescriptorHeaps()
@@ -503,7 +507,7 @@ void CrateApp::BuildDescriptorHeaps()
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 	// 从全局纹理里 手动取出 名为woodCrateTex的这张纹理,是ID3D12Resource型
 	auto woodCrateTex = mTextures["woodCrateTex"]->Resource;
-	// 创建真正的SRV视图
+	// 创建真正的SRV view
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;	// 采样时,返回的坐标上的向量
 	srvDesc.Format = woodCrateTex->GetDesc().Format;							// 视图的格式
@@ -663,7 +667,8 @@ void CrateApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::ve
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		// 从SRV HEAP里拿有关纹理的句柄,由于有很多张纹理句柄,所以每次都偏移一次,偏移的序数是 diffuseMapIndex
+		// (如果纹理已被创建且纹理的SRV也位于HEAP中)
+		// 从SRV HEAP里拿有关纹理的句柄,由于有很多张纹理句柄,所以每次都偏移一次,偏移的序数是 diffuseMapIndex 
 		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
 
@@ -687,11 +692,11 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> CrateApp::GetStaticSamplers()
 	// and keep them available as part of the root signature.  
 
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
-		0, // shaderRegister
-		D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
-		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
-		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
-		D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+		0, // shader寄存器
+		D3D12_FILTER_MIN_MAG_MIP_POINT, // 过滤器类型
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // UV的U轴使用的寻址模式
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // UV的V轴使用的寻址模式
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP); // UV的W轴使用的寻址模式
 
 	const CD3DX12_STATIC_SAMPLER_DESC pointClamp(
 		1, // shaderRegister
@@ -720,8 +725,8 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> CrateApp::GetStaticSamplers()
 		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
 		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
 		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressW
-		0.0f,                             // mipLODBias
-		8);                               // maxAnisotropy
+		0.0f,                             // mipmap层级的偏置值
+		8);                               // 最大各向异性值
 
 	const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(
 		5, // shaderRegister
