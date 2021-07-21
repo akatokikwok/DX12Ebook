@@ -86,6 +86,7 @@ public:
 	/// Creates a box centered at the origin with the given dimensions, where each
 	/// face has m rows and n columns of vertices.
 	///</summary>
+	/// 用于生成立方体的纹理坐标
 	MeshData CreateBox(float width, float height, float depth, uint32 numSubdivisions);
 
 	///<summary>

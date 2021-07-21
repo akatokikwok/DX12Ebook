@@ -437,12 +437,14 @@ void CrateApp::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+/// 在初始化阶段利用.dds加载纹理
 void CrateApp::LoadTextures()
 {
 	auto woodCrateTex = std::make_unique<Texture>();// 构建1个纹理的唯一指针
 	// 手动指定其各个成员属性 并 创建出DDS纹理
-	woodCrateTex->Name = "woodCrateTex";
-	woodCrateTex->Filename = L"../../Textures/WoodCrate01.dds";
+	woodCrateTex->Name = "woodCrateTex";// 纹理名叫woodCrateTex
+	woodCrateTex->Filename = L"../../Textures/WoodCrate01.dds";// 纹理的来源是../../Textures/WoodCrate01.dds这个文件
+	// 创建出纹理资源
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), woodCrateTex->Filename.c_str(),
 		woodCrateTex->Resource, woodCrateTex->UploadHeap)
@@ -505,7 +507,7 @@ void CrateApp::BuildDescriptorHeaps()
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 	// 从全局纹理里 手动取出 名为woodCrateTex的这张纹理,是ID3D12Resource型
 	auto woodCrateTex = mTextures["woodCrateTex"]->Resource;
-	// 创建真正的SRV视图
+	// 创建真正的SRV view
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;	// 采样时,返回的坐标上的向量
 	srvDesc.Format = woodCrateTex->GetDesc().Format;							// 视图的格式
@@ -665,7 +667,8 @@ void CrateApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::ve
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		// 从SRV HEAP里拿有关纹理的句柄,由于有很多张纹理句柄,所以每次都偏移一次,偏移的序数是 diffuseMapIndex
+		// (如果纹理已被创建且纹理的SRV也位于HEAP中)
+		// 从SRV HEAP里拿有关纹理的句柄,由于有很多张纹理句柄,所以每次都偏移一次,偏移的序数是 diffuseMapIndex 
 		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
 
