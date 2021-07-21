@@ -116,14 +116,12 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 漫反照率 == 从这张2D纹理里提取此像素的漫反射率 并与 材质常量里的反照率 相乘
     float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
 	
-    // 注意,alpha测试的开销巨大,只有在必要情况下才使用
 #ifdef ALPHA_TEST
-    // 项目里使用的是铁丝网贴图,alpha通道作用就是从纹理里屏蔽非铁丝网部分
-	// 采集像素里的alpha分量,如果此值极小并接近0,则暗示此像素是完全透明,建议把此像素裁减掉,以免后续再处理它
-    // 不需要接近完全透明的像素,丢弃掉
+	// Discard pixel if texture alpha < 0.1.  We do this test as soon 
+	// as possible in the shader so that we can potentially exit the
+	// shader early, thereby skipping the rest of the shader code.
 	clip(diffuseAlbedo.a - 0.1f);
 #endif
 
@@ -151,7 +149,7 @@ float4 PS(VertexOut pin) : SV_Target
 	litColor = lerp(litColor, gFogColor, fogAmount);
 #endif
 
-    // 从之前计算好的漫反照率里获取alpha值
+    // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;
 
     return litColor;
