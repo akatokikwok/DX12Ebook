@@ -24,6 +24,7 @@
     <ProjectGuid>{3bba9588-1e11-40c7-8c8b-2f36f3c6b033}</ProjectGuid>
     <RootNamespace>BlendDemo</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>10_BlendDemo</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
