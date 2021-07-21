@@ -261,7 +261,7 @@ struct Material
 
 	// "脏标记", 用以表示本材质已有变动,提示更新常数缓存,默认为3(帧资源个数);
 	// 每个帧资源都持有一个材质常量, 所以要对所有帧资源执行更新, 所以这里把"脏标记" 等价于 帧资源个数
-	int NumFramesDirty = gNumFrameResources;// 默认为3(即帧资源个数)
+	int NumFramesDirty = gNumFrameResources;// 材质里的帧标记,当材质发生变化,就更改此帧标记, 默认为3(即帧资源个数)
 
 	// 用于shader着色的 "材质常量缓存数据"
 	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };// 漫反射率
