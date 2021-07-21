@@ -1,4 +1,4 @@
-//***************************************************************************************
+ï»¿//***************************************************************************************
 // BlendApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -57,7 +57,8 @@ enum class RenderLayer : int
 	Opaque = 0,
 	Transparent,
 	AlphaTested,
-	Count
+	Count,
+	NoFog
 };
 
 class BlendApp : public D3DApp
@@ -286,6 +287,7 @@ void BlendApp::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+	//DrawRenderItems(mCommandList.Get(), mAllRitems);
 
 	mCommandList->SetPipelineState(mPSOs["alphaTested"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::AlphaTested]);
@@ -633,6 +635,7 @@ void BlendApp::BuildDescriptorHeaps()
 
 void BlendApp::BuildShadersAndInputLayout()
 {
+	// ä½¿ç”¨D3D_SHADER_MACROç»“æ„ä½“å¼€å¯é›¾æ•ˆ
 	const D3D_SHADER_MACRO defines[] =
 	{
 		"FOG", "1",
@@ -647,7 +650,9 @@ void BlendApp::BuildShadersAndInputLayout()
 	};
 
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_0");
-	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", defines, "PS", "ps_5_0");
+
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", defines, "PS", "ps_5_0");// è¿™ä¸ªæ˜¯é›¾æ•ˆçš„shaderå¼€å…³,å¦‚æœæŠŠdefinesæ›¿æ¢æˆnullptr,é‚£å°±ä¼šå…³é—­é›¾æ•ˆ
+	mShaders["noFogPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "PS", "ps_5_0");
 	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
 
 	mInputLayout =
@@ -847,6 +852,15 @@ void BlendApp::BuildPSOs()
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC noFogPsoDesc = opaquePsoDesc;
+	noFogPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["noFogPS"]->GetBufferPointer()),
+		mShaders["noFogPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&noFogPsoDesc, IID_PPV_ARGS(&mPSOs["NOFOG"])));
+
+
 	//
 	// PSO for transparent objects
 	//
@@ -854,29 +868,29 @@ void BlendApp::BuildPSOs()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
 
 	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
-	transparencyBlendDesc.BlendEnable = true;					// ³£¹æ»ìºÏ¹¦ÄÜ¿ª¹Ø,½ûÖ¹Í¬Ê±ÓëLogicOpEnableÒ»Æğ¿ªÆô
-	transparencyBlendDesc.LogicOpEnable = false;				// Âß¼­»ìºÏ¹¦ÄÜ¿ª¹Ø,½ûÖ¹Í¬Ê±ÓëBlendEnableÒ»Æğ¿ªÆô
-	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;		// Ö¸¶¨RGB»ìºÏÖĞµÄ Ô´»ìºÏÒò×Ó
-	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;// Ö¸¶¨RGB»ìºÏÖĞµÄ Ä¿±ê»ìºÏÒò×Ó
-	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;			// Ö¸¶¨RGB»ìºÏÖĞµÄ »ìºÏÔËËã·û
-	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;		// Ö¸¶¨Alpha»ìºÏÖĞ Ô´»ìºÏÒò×Ó
-	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;	// Ö¸¶¨Alpha»ìºÏÖĞ Ä¿±ê»ìºÏÒò×Ó
-	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;	// Ö¸¶¨alpha»ìºÏÖĞ »ìºÏÔËËã·û
-	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;		// Ö¸¶¨Ô´ÑÕÉ«ÓëÄ¿±êÑÕÉ«Ê¹ÓÃµÄÂß¼­ÔËËã·û
-	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;// ¿ØÖÆ¿É±»Ğ´ÈëºóÌ¨»º´æµÄÄÄĞ©ÑÕÉ«Í¨µÀ
+	transparencyBlendDesc.BlendEnable = true;					// å¸¸è§„æ··åˆåŠŸèƒ½å¼€å…³,ç¦æ­¢åŒæ—¶ä¸LogicOpEnableä¸€èµ·å¼€å¯
+	transparencyBlendDesc.LogicOpEnable = false;				// é€»è¾‘æ··åˆåŠŸèƒ½å¼€å…³,ç¦æ­¢åŒæ—¶ä¸BlendEnableä¸€èµ·å¼€å¯
+	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;		// æŒ‡å®šRGBæ··åˆä¸­çš„ æºæ··åˆå› å­
+	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;// æŒ‡å®šRGBæ··åˆä¸­çš„ ç›®æ ‡æ··åˆå› å­
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;			// æŒ‡å®šRGBæ··åˆä¸­çš„ æ··åˆè¿ç®—ç¬¦
+	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;		// æŒ‡å®šAlphaæ··åˆä¸­ æºæ··åˆå› å­
+	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;	// æŒ‡å®šAlphaæ··åˆä¸­ ç›®æ ‡æ··åˆå› å­
+	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;	// æŒ‡å®šalphaæ··åˆä¸­ æ··åˆè¿ç®—ç¬¦
+	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;		// æŒ‡å®šæºé¢œè‰²ä¸ç›®æ ‡é¢œè‰²ä½¿ç”¨çš„é€»è¾‘è¿ç®—ç¬¦
+	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;// æ§åˆ¶å¯è¢«å†™å…¥åå°ç¼“å­˜çš„å“ªäº›é¢œè‰²é€šé“
 
 	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
-	// ´´½¨¿ªÆô»ìºÏ¹¦ÄÜµÄÁ÷Ë®Ïß
+	// åˆ›å»ºå¼€å¯æ··åˆåŠŸèƒ½çš„æµæ°´çº¿
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
 
-	// Õë¶Ôalpha²âÊÔ ÎïÌåËùÊ¹ÓÃµÄÁ÷Ë®Ïß,
+	// é’ˆå¯¹alphaæµ‹è¯• ç‰©ä½“æ‰€ä½¿ç”¨çš„æµæ°´çº¿,
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
 	alphaTestedPsoDesc.PS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer()),
 		mShaders["alphaTestedPS"]->GetBufferSize()
 	};
-	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;// ÓÉÓÚµ±Ç°Ä¾ºĞ×ÓÊ¹ÓÃµÄÊÇÌúË¿ÍøÌùÍ¼,ËùÒÔÓ¦¸Ã¶Ô¸ÃÎïÌå½ûÓÃ±³ÃæÌŞ³ı,·ñÔò¾ÍÊÓ¾õÉÏ´©°ï
+	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;// ç”±äºå½“å‰æœ¨ç›’å­ä½¿ç”¨çš„æ˜¯é“ä¸ç½‘è´´å›¾,æ‰€ä»¥åº”è¯¥å¯¹è¯¥ç‰©ä½“ç¦ç”¨èƒŒé¢å‰”é™¤,å¦åˆ™å°±è§†è§‰ä¸Šç©¿å¸®
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
 }
 
@@ -938,6 +952,8 @@ void BlendApp::BuildRenderItems()
 
 	mRitemLayer[(int)RenderLayer::Transparent].push_back(wavesRitem.get());
 
+	//mRitemLayer[(int)RenderLayer::NoFog].push_back(wavesRitem.get());
+
 	auto gridRitem = std::make_unique<RenderItem>();
 	gridRitem->World = MathHelper::Identity4x4();
 	XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
@@ -951,6 +967,8 @@ void BlendApp::BuildRenderItems()
 
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
 
+	//mRitemLayer[(int)RenderLayer::NoFog].push_back(gridRitem.get());
+
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
 	boxRitem->ObjCBIndex = 2;
@@ -962,6 +980,8 @@ void BlendApp::BuildRenderItems()
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
 
 	mRitemLayer[(int)RenderLayer::AlphaTested].push_back(boxRitem.get());
+
+	//mRitemLayer[(int)RenderLayer::NoFog].push_back(boxRitem.get());
 
 	mAllRitems.push_back(std::move(wavesRitem));
 	mAllRitems.push_back(std::move(gridRitem));
