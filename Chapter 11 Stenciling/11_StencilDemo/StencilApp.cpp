@@ -139,7 +139,7 @@ private:
 	// 即物体在镜子里的镜像也需要与之对应的光照,由于光源原本存在于PASSCB里,所以可以额外再创建1个RENDERPASS CB用来存放 光照的镜像
 	PassConstants mReflectedPassCB;
 
-	XMFLOAT3 mSkullTranslation = { 0.0f, 1.0f, -5.0f };
+	XMFLOAT3 mSkullTranslation = { 0.0f, 1.0f, -5.0f };// 骷髅头的位置
 
 	XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
 	XMFLOAT4X4 mView = MathHelper::Identity4x4();
@@ -313,7 +313,8 @@ void StencilApp::Draw(const GameTimer& gt)
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
 
-	// Draw shadows
+	// 6.流水线切换为"渲染阴影专用流水线"并绘制阴影; 由于此前stencilREF被重置为0了,所以此处绘制阴影的时候,当且仅当当前模板值等于0的时候才让通过模板测试
+	// 随后模板值自增为1,可以预防阴影的复写和双重混合,因为此时为1了,而只在为0的时候才让通过模板测试
 	mCommandList->SetPipelineState(mPSOs["shadow"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Shadow]);
 
@@ -402,10 +403,10 @@ void StencilApp::OnKeyboardInput(const GameTimer& gt)
 	if (GetAsyncKeyState('S') & 0x8000)
 		mSkullTranslation.y -= 1.0f * dt;
 
-	// Don't let user move below ground plane.
+	// 把骷髅头位置高度始终限制在地板上方
 	mSkullTranslation.y = MathHelper::Max(mSkullTranslation.y, 0.0f);
 
-	// Update the new world matrix.
+	// 更新骷髅头渲染项字段的世界矩阵为 自己手动构建出来的世界矩阵
 	XMMATRIX skullRotate = XMMatrixRotationY(0.5f * MathHelper::Pi);
 	XMMATRIX skullScale = XMMatrixScaling(0.45f, 0.45f, 0.45f);
 	XMMATRIX skullOffset = XMMatrixTranslation(mSkullTranslation.x, mSkullTranslation.y, mSkullTranslation.z);
@@ -417,12 +418,12 @@ void StencilApp::OnKeyboardInput(const GameTimer& gt)
 	XMMATRIX R = XMMatrixReflect(mirrorPlane);
 	XMStoreFloat4x4(&mReflectedSkullRitem->World, skullWorld * R);
 
-	// Update shadow world matrix.
-	XMVECTOR shadowPlane = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f); // xz plane
-	XMVECTOR toMainLight = -XMLoadFloat3(&mMainPassCB.Lights[0].Direction);
-	XMMATRIX S = XMMatrixShadow(shadowPlane, toMainLight);
-	XMMATRIX shadowOffsetY = XMMatrixTranslation(0.0f, 0.001f, 0.0f);
-	XMStoreFloat4x4(&mShadowedSkullRitem->World, skullWorld * S * shadowOffsetY);
+	// 更新阴影渲染项的世界矩阵
+	XMVECTOR shadowPlane = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f); // xz 平面
+	XMVECTOR toMainLight = -XMLoadFloat3(&mMainPassCB.Lights[0].Direction);// 平行光射入方向反方向的向量
+	XMMATRIX S = XMMatrixShadow(shadowPlane, toMainLight);// XMMatrixShadow函数用以构建 投射阴影的阴影矩阵
+	XMMATRIX shadowOffsetY = XMMatrixTranslation(0.0f, 0.001f, 0.0f);// 构建1个稍稍往上抬一点的位移矩阵,以防止深度冲突
+	XMStoreFloat4x4(&mShadowedSkullRitem->World, skullWorld * S * shadowOffsetY);// 
 
 	mSkullRitem->NumFramesDirty = gNumFrameResources;
 	mReflectedSkullRitem->NumFramesDirty = gNumFrameResources;
@@ -1008,22 +1009,24 @@ void StencilApp::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawReflectionsPsoDesc, IID_PPV_ARGS(&mPSOs["drawStencilReflections"])));// 骷髅头镜中反射镜像的PSO
 
 	//
-	// PSO for shadow objects
+	// 给阴影用的PSO
 	//
-
-	// We are going to draw shadows with transparency, so base it off the transparency description.
+	// 双重混合:会有2个或者多个平面三角形互相重叠,导致利用透明混合计数渲染阴影的时候 ,三角形重叠部分被混合多次,导致看上去更暗
+	// 可以借助模板解决:
+	// 1. 迫使所有参与阴影渲染的模板缓存的阴影范围都被清空为0
+	// 2.设置模板测试, 使之仅接受模板缓存元素为0的像素, 如果通过模板测试, 就替换为stencilRef增为1; 这样第二次复写的时候, 法线模板是1了, 由于仅接受0不接受1, 所以模板测试失败, 阻止多次绘制同一像素
 	D3D12_DEPTH_STENCIL_DESC shadowDSS;
-	shadowDSS.DepthEnable = true;
-	shadowDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-	shadowDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-	shadowDSS.StencilEnable = true;
+	shadowDSS.DepthEnable = true;// 开启深度测试
+	shadowDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;//允许写入深度
+	shadowDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;// 此处LESS表示给定的数据像素片段满足小于深度缓存里的对应像素深度,就接收该像素片段(即近处物体遮挡远处物体)
+	shadowDSS.StencilEnable = true;// 开启模板测试
 	shadowDSS.StencilReadMask = 0xff;
 	shadowDSS.StencilWriteMask = 0xff;
 
-	shadowDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	shadowDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-	shadowDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
-	shadowDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	shadowDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;// 模板测试失败 保留原像素
+	shadowDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;// 深度测试失败,保留原有像素(就是指 即使有东西挡在阴影前面阴影像素仍然被绘制)
+	shadowDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;// 通过模板测试后, 对模板值递增,除非超过限制255被打回0
+	shadowDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;// 仅当前模板值接受等于0 才让通过测试
 
 	// We are not rendering backfacing polygons, so these settings do not matter.
 	shadowDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
@@ -1033,7 +1036,7 @@ void StencilApp::BuildPSOs()
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC shadowPsoDesc = transparentPsoDesc;
 	shadowPsoDesc.DepthStencilState = shadowDSS;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&shadowPsoDesc, IID_PPV_ARGS(&mPSOs["shadow"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&shadowPsoDesc, IID_PPV_ARGS(&mPSOs["shadow"])));// 阴影用PSO
 }
 
 void StencilApp::BuildFrameResources()
@@ -1078,12 +1081,12 @@ void StencilApp::BuildMaterials()
 	skullMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	skullMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
 	skullMat->Roughness = 0.3f;
-
+	// 阴影材质
 	auto shadowMat = std::make_unique<Material>();
 	shadowMat->Name = "shadowMat";
 	shadowMat->MatCBIndex = 4;
 	shadowMat->DiffuseSrvHeapIndex = 3;
-	shadowMat->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.5f);
+	shadowMat->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.5f);// 50%透明度
 	shadowMat->FresnelR0 = XMFLOAT3(0.001f, 0.001f, 0.001f);
 	shadowMat->Roughness = 0.0f;
 
