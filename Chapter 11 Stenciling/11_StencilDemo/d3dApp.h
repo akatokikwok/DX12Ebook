@@ -142,7 +142,7 @@ protected:
 	std::wstring mMainWndCaption = L"d3d App";
 	D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
 	DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;// 后台缓存格式
-	DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;// 用以填充清除值的深度模板格式
+	DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;// 用以填充清除值的深度模板格式(只要创建深度模板缓存的需求存在)
 	int mClientWidth = 800;
 	int mClientHeight = 600;
 };
