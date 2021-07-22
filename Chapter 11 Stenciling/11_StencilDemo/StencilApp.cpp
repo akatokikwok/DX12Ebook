@@ -130,10 +130,13 @@ private:
 	// List of all the render items.
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
-	// Render items divided by PSO.
+	// 受制于PSO而划分的 一组渲染项
 	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
 
+	// 主PASS CB
 	PassConstants mMainPassCB;
+	// 需要2个单独的pre-pass CB, 一个存储物体镜像, 一个存储光照镜像,是因为
+	// 即物体在镜子里的镜像也需要与之对应的光照,由于光源原本存在于PASSCB里,所以可以额外再创建1个RENDERPASS CB用来存放 光照的镜像
 	PassConstants mReflectedPassCB;
 
 	XMFLOAT3 mSkullTranslation = { 0.0f, 1.0f, -5.0f };
@@ -274,38 +277,39 @@ void StencilApp::Draw(const GameTimer& gt)
 		1.0f/*0~1*/, 0/*0~255*/, 0/*矩形数量*/, nullptr/*pRects数组,此处表示清理整个深度模板缓存*/
 	);
 
-	// Specify the buffers we are going to render to.
+	// 指定要渲染的后台VIEW和深度模板VIEW
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-
+	// 取出SRV HEAP数组,并在管线上设置SRV HEAP
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-
+	// 255字节对齐 PASSCB
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
-	// Draw opaque items--floors, walls, skull.
+	// 1. 依次绘制不透明的物体:地板/墙壁/骷髅头
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
-	// Mark the visible mirror pixels in the stencil buffer with the value 1
+	// 2. 把在模板缓存里可见的 关于"镜面"的像素标记为1; 并设置当前流水线状态为"镜子专属PSO"
 	mCommandList->OMSetStencilRef(1);
 	mCommandList->SetPipelineState(mPSOs["markStencilMirrors"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Mirrors]);
 
-	// Draw the reflection into the mirror only (only for pixels where the stencil buffer is 1).
-	// Note that we must supply a different per-pass constant buffer--one with the lights reflected.
-	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress() + 1 * passCBByteSize);
+	// 3. 仅绘制模板缓存内标记为1的像素(此处是限制在镜子范围内的骷髅头镜像,因为镜子像素在模板缓存内被标记为1)
+	// 额外注意, 需要2个单独的pre-pass CB, 一个存储物体镜像, 一个存储光照镜像,是因为
+	// 即物体在镜子里的镜像也需要与之对应的光照,由于光源原本存在于PASSCB里,所以可以额外再创建1个RENDERPASS CB用来存放 光照的镜像
+	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress() + 1 * passCBByteSize);// 需要2个单独的pre-pass CB, 一个存储物体镜像, 一个存储光照镜像
 	mCommandList->SetPipelineState(mPSOs["drawStencilReflections"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Reflected]);
 
-	// Restore main pass constants and stencil ref.
+	// 4. 重置并恢复 主PASS里的CB 以及 stencilRef值
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 	// 这里在Draw()框架里在输出合并阶段指定StencilRef值, 以1个无符号整数作为参数
 	mCommandList->OMSetStencilRef(0);
 
-	// Draw mirror with transparency so reflection blends through.
+	// 5. 最后绘制透明的镜面, 使之能与此前的骷髅头镜像像素融合
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
 
@@ -361,7 +365,8 @@ void StencilApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	} 	else if ((btnState & MK_RBUTTON) != 0) {
+	}
+	else if ((btnState & MK_RBUTTON) != 0) {
 		// Make each pixel correspond to 0.2 unit in the scene.
 		float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
@@ -527,21 +532,24 @@ void StencilApp::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+/// 每帧都要更新受光照的骷髅头镜像
 void StencilApp::UpdateReflectedPassCB(const GameTimer& gt)
 {
+	// 需要2个单独的pre-pass CB, 一个存储物体镜像, 一个存储光照镜像,是因为
+	// 即物体在镜子里的镜像也需要与之对应的光照,由于光源原本存在于PASSCB里,所以可以额外再创建1个RENDERPASS CB用来存放 光照的镜像
 	mReflectedPassCB = mMainPassCB;
-
+	// 做出镜像效果的 翻转z方向的矩阵 "R"
 	XMVECTOR mirrorPlane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f); // xy plane
 	XMMATRIX R = XMMatrixReflect(mirrorPlane);
 
-	// Reflect the lighting.
+	// 光照骷髅头镜像,遍历3个光源
 	for (int i = 0; i < 3; ++i) {
-		XMVECTOR lightDir = XMLoadFloat3(&mMainPassCB.Lights[i].Direction);
-		XMVECTOR reflectedLightDir = XMVector3TransformNormal(lightDir, R);
-		XMStoreFloat3(&mReflectedPassCB.Lights[i].Direction, reflectedLightDir);
+		XMVECTOR lightDir = XMLoadFloat3(&mMainPassCB.Lights[i].Direction);// 加载出每个光源里的平行光
+		XMVECTOR reflectedLightDir = XMVector3TransformNormal(lightDir, R);// 把加载出的平行光 利用Z翻转矩阵执行翻转
+		XMStoreFloat3(&mReflectedPassCB.Lights[i].Direction, reflectedLightDir);// 再存到mReflectedPassCB里
 	}
 
-	// Reflected pass stored in index 1
+	// mReflectedPassCB作为数据源, 拷贝至当前帧的PASSCB的第1号位置
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(1, mReflectedPassCB);
 }
@@ -938,11 +946,10 @@ void StencilApp::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
 
 	//
-	// PSO for marking stencil mirrors.
+	// stencil buffer中用以标记镜子的PSO
 	//
-
 	CD3DX12_BLEND_DESC mirrorBlendState(D3D12_DEFAULT);
-	mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;// 此处是为了禁止其他颜色写入到后台缓存
+	mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;// 此处是为了仅仅把镜子写入stencil缓存区, 禁止其他颜色写入到后台缓存
 
 	/// 要描述深度模板状态,就要填写D3D12_DEPTH_STENCIL_DESC实例
 	D3D12_DEPTH_STENCIL_DESC mirrorDSS;
@@ -956,8 +963,8 @@ void StencilApp::BuildPSOs()
 	/// 根据深度\模板测试结果, 对正面朝向三角形执行何种运算
 	mirrorDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;// StencilFailOp表示仅当像素片段在stencil测试失败, 如何更新后续的stencil缓存; D3D12_STENCIL_OP_KEEP表示不修改stencil,保持原有数据
 	mirrorDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;// StencilDepthFailOp表示stencil测试通过,但深度测试失败, 如何更新后续的stencil缓存; D3D12_STENCIL_OP_KEEP表示不修改stencil,保持原有数据
-	mirrorDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;// StencilPassOp表示当像素片段均通过2种测试,如何更新后续的stencil缓存; D3D12_STENCIL_OP_REPLACE表示把模板替换成StencilRef, StencilRef值在Draw()里指定
-	mirrorDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;// StencilFunc即那个D3D12_COMPARISON_FUNC比较函数,与Draw()里设置的stencilRef相关联; 这里手动指定为总是返回true;
+	mirrorDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;// 通过模板测试后弃用原有像素, 改用stencilREF; stencilRef的值替换原有值; StencilPassOp表示当像素片段均通过2种测试,如何更新后续的stencil缓存; D3D12_STENCIL_OP_REPLACE表示把模板替换成StencilRef, StencilRef值在Draw()里指定
+	mirrorDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;// StencilFunc即那个D3D12_COMPARISON_FUNC比较函数,与Draw()里设置的stencilRef相关联; 这里的比较函数手动指定为 100%通过模板测试
 
 	// 由于此处不渲染背面三角形,所以对背面三角形的渲染此处无足轻重
 	/// 根据深度\模板测试结果, 对背面朝向三角形执行何种运算
@@ -968,25 +975,24 @@ void StencilApp::BuildPSOs()
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC markMirrorsPsoDesc = opaquePsoDesc;
 	markMirrorsPsoDesc.BlendState = mirrorBlendState;
-	markMirrorsPsoDesc.DepthStencilState = mirrorDSS;//使用D3D12_DEPTH_STENCIL_DESC实例来填充流水线的DepthStencilState字段
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&markMirrorsPsoDesc, IID_PPV_ARGS(&mPSOs["markStencilMirrors"])));
+	markMirrorsPsoDesc.DepthStencilState = mirrorDSS;// 使用D3D12_DEPTH_STENCIL_DESC实例来填充流水线的DepthStencilState字段
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&markMirrorsPsoDesc, IID_PPV_ARGS(&mPSOs["markStencilMirrors"])));// 镜子的PSO
 
 	//
-	// PSO for stencil reflections.
+	// 骷髅头镜中反射镜像的PSO
 	//
-
 	D3D12_DEPTH_STENCIL_DESC reflectionsDSS;
-	reflectionsDSS.DepthEnable = true;
-	reflectionsDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-	reflectionsDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-	reflectionsDSS.StencilEnable = true;
+	reflectionsDSS.DepthEnable = true;// 开启深度测试
+	reflectionsDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;// 通过深度以及模板测试的数据会被写入深度
+	reflectionsDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;// 此处LESS表示给定的数据像素片段满足小于深度缓存里的对应像素深度,就接收该像素片段(即近处物体遮挡远处物体)
+	reflectionsDSS.StencilEnable = true;// 开启模板测试
 	reflectionsDSS.StencilReadMask = 0xff;
 	reflectionsDSS.StencilWriteMask = 0xff;
 
-	reflectionsDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	reflectionsDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-	reflectionsDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
-	reflectionsDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	reflectionsDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;// 模板测试失败 保留原像素
+	reflectionsDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;// 深度测试失败,保留原有像素(就是指 即使镜子挡在骷髅头镜像前面,骷髅头镜像像素仍然被绘制)
+	reflectionsDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;// 模板测试通过的时候 保留原有骷髅头镜像像素,不使用stencilRef
+	reflectionsDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;// 这里的比较函数设为 当且仅当 == 外部stencilRef的时候 才允许通过模板测试
 
 	// We are not rendering backfacing polygons, so these settings do not matter.
 	reflectionsDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
@@ -995,10 +1001,11 @@ void StencilApp::BuildPSOs()
 	reflectionsDSS.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC drawReflectionsPsoDesc = opaquePsoDesc;
-	drawReflectionsPsoDesc.DepthStencilState = reflectionsDSS;
-	drawReflectionsPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+	drawReflectionsPsoDesc.DepthStencilState = reflectionsDSS;// 使用D3D12_DEPTH_STENCIL_DESC实例来填充流水线的DepthStencilState字段
+	drawReflectionsPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;//裁剪背面
+	// 由于三角形绕序不变,但是在镜子里的镜像的法线从原本的外向朝向变成了内向朝向,所以要通知D3D这个异常变化,此时把逆时针视作正方向(和原本的反过来)
 	drawReflectionsPsoDesc.RasterizerState.FrontCounterClockwise = true;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawReflectionsPsoDesc, IID_PPV_ARGS(&mPSOs["drawStencilReflections"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawReflectionsPsoDesc, IID_PPV_ARGS(&mPSOs["drawStencilReflections"])));// 骷髅头镜中反射镜像的PSO
 
 	//
 	// PSO for shadow objects
@@ -1089,49 +1096,52 @@ void StencilApp::BuildMaterials()
 
 void StencilApp::BuildRenderItems()
 {
+	// 地板的渲染项
 	auto floorRitem = std::make_unique<RenderItem>();
-	floorRitem->World = MathHelper::Identity4x4();
-	floorRitem->TexTransform = MathHelper::Identity4x4();
-	floorRitem->ObjCBIndex = 0;
-	floorRitem->Mat = mMaterials["checkertile"].get();
-	floorRitem->Geo = mGeometries["roomGeo"].get();
-	floorRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	floorRitem->IndexCount = floorRitem->Geo->DrawArgs["floor"].IndexCount;
+	floorRitem->World = MathHelper::Identity4x4();// 世界变换矩阵为单位矩阵
+	floorRitem->TexTransform = MathHelper::Identity4x4();// 纹理变换矩阵也为默认单位矩阵
+	floorRitem->ObjCBIndex = 0;// 地板 物体索引为 0号
+	floorRitem->Mat = mMaterials["checkertile"].get();// 手动设置 地板材质为"checkertile"
+	floorRitem->Geo = mGeometries["roomGeo"].get();// 手动设置地板GEO管理员为roomGeo
+	floorRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;// 图元设为三角形
+	floorRitem->IndexCount = floorRitem->Geo->DrawArgs["floor"].IndexCount;// 三个DrawIndexedInstanced的参数由GEO管理员里的属性决定
 	floorRitem->StartIndexLocation = floorRitem->Geo->DrawArgs["floor"].StartIndexLocation;
 	floorRitem->BaseVertexLocation = floorRitem->Geo->DrawArgs["floor"].BaseVertexLocation;
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(floorRitem.get());
-
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(floorRitem.get());// 非透明PSO的专属渲染项集里 新增1个"地板渲染项"
+	
+    // 墙壁渲染项
 	auto wallsRitem = std::make_unique<RenderItem>();
 	wallsRitem->World = MathHelper::Identity4x4();
 	wallsRitem->TexTransform = MathHelper::Identity4x4();
-	wallsRitem->ObjCBIndex = 1;
+	wallsRitem->ObjCBIndex = 1;// 墙壁 物体索引为 1号
 	wallsRitem->Mat = mMaterials["bricks"].get();
-	wallsRitem->Geo = mGeometries["roomGeo"].get();
+	wallsRitem->Geo = mGeometries["roomGeo"].get();// 手动设置地板GEO管理员为roomGeo
 	wallsRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	wallsRitem->IndexCount = wallsRitem->Geo->DrawArgs["wall"].IndexCount;
 	wallsRitem->StartIndexLocation = wallsRitem->Geo->DrawArgs["wall"].StartIndexLocation;
 	wallsRitem->BaseVertexLocation = wallsRitem->Geo->DrawArgs["wall"].BaseVertexLocation;
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(wallsRitem.get());
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(wallsRitem.get());// 非透明PSO的专属渲染项集里 再新增1个"墙壁"渲染项
 
+	// 骷髅头渲染项
 	auto skullRitem = std::make_unique<RenderItem>();
 	skullRitem->World = MathHelper::Identity4x4();
 	skullRitem->TexTransform = MathHelper::Identity4x4();
-	skullRitem->ObjCBIndex = 2;
+	skullRitem->ObjCBIndex = 2;// 骷髅头物体索引标记为2号
 	skullRitem->Mat = mMaterials["skullMat"].get();
-	skullRitem->Geo = mGeometries["skullGeo"].get();
+	skullRitem->Geo = mGeometries["skullGeo"].get();//GEO管理员设置为 skullGeo,不再是原来的roomGeo
 	skullRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
 	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
 	skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
 	mSkullRitem = skullRitem.get();
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(skullRitem.get());
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(skullRitem.get());// 非透明PSO的专属渲染项集里 再新增1个"骷髅头"渲染项
 
-	// Reflected skull will have different world matrix, so it needs to be its own render item.
+	// 骷髅头镜像渲染项 ,它持有不同的世界矩阵,所以有必要设置自己专属的渲染项
 	auto reflectedSkullRitem = std::make_unique<RenderItem>();
 	*reflectedSkullRitem = *skullRitem;
-	reflectedSkullRitem->ObjCBIndex = 3;
-	mReflectedSkullRitem = reflectedSkullRitem.get();
-	mRitemLayer[(int)RenderLayer::Reflected].push_back(reflectedSkullRitem.get());
+	reflectedSkullRitem->ObjCBIndex = 3;// 骷髅头镜像 物体索引标记为3号
+	mReflectedSkullRitem = reflectedSkullRitem.get();// 暂存为字段
+	mRitemLayer[(int)RenderLayer::Reflected].push_back(reflectedSkullRitem.get());// 反射镜像PSO的专属渲染项集里 新增1个"骷髅头镜像"渲染项
 
 	// Shadowed skull will have different world matrix, so it needs to be its own render item.
 	auto shadowedSkullRitem = std::make_unique<RenderItem>();
