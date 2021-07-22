@@ -270,7 +270,7 @@ void StencilApp::Draw(const GameTimer& gt)
 
 	// 绘制每一帧画面之初,就重置清理深度模板缓存View
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), (float*)&mMainPassCB.FogColor, 0, nullptr);
-	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
+	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
 		1.0f/*0~1*/, 0/*0~255*/, 0/*矩形数量*/, nullptr/*pRects数组,此处表示清理整个深度模板缓存*/
 	);
 
@@ -302,6 +302,7 @@ void StencilApp::Draw(const GameTimer& gt)
 
 	// Restore main pass constants and stencil ref.
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+	// 这里在Draw()框架里在输出合并阶段指定StencilRef值, 以1个无符号整数作为参数
 	mCommandList->OMSetStencilRef(0);
 
 	// Draw mirror with transparency so reflection blends through.
@@ -360,8 +361,7 @@ void StencilApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	}
-	else if ((btnState & MK_RBUTTON) != 0) {
+	} 	else if ((btnState & MK_RBUTTON) != 0) {
 		// Make each pixel correspond to 0.2 unit in the scene.
 		float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
@@ -942,31 +942,33 @@ void StencilApp::BuildPSOs()
 	//
 
 	CD3DX12_BLEND_DESC mirrorBlendState(D3D12_DEFAULT);
-	mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;
+	mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;// 此处是为了禁止其他颜色写入到后台缓存
 
-	// 要描述深度模板状态,就要填写D3D12_DEPTH_STENCIL_DESC实例
+	/// 要描述深度模板状态,就要填写D3D12_DEPTH_STENCIL_DESC实例
 	D3D12_DEPTH_STENCIL_DESC mirrorDSS;
 	mirrorDSS.DepthEnable = true;							// 若禁用,则DepthWriteMask选项失效
-	mirrorDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;	// 指定为ZERO表示 搭配DepthEnable禁止写入深度,但仍允许深度测试;若指定为ALL,则表示通过深度以及模板测试的数据会被写入深度
+	mirrorDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;	// 指定为ZERO表示 搭配DepthEnable禁止写入深度,但仍允许深度测试;若指定为ALL,则表示通过深度以及模板测试的数据会被写入深度; 此处搭配945行来禁止写入depth缓存
 	mirrorDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;		// 一组枚举的比较函数,此处LESS表示给定的数据像素片段满足小于深度缓存里的对应像素深度,就接收该像素片段(即近处物体遮挡远处物体)
-	mirrorDSS.StencilEnable = true;							// 
-	mirrorDSS.StencilReadMask = 0xff;						//
-	mirrorDSS.StencilWriteMask = 0xff;						//
+	mirrorDSS.StencilEnable = true;							// 模板测试开关
+	mirrorDSS.StencilReadMask = 0xff;						// 此处表示不会屏蔽任意一位模板值
+	mirrorDSS.StencilWriteMask = 0xff;						// 写掩码 负责屏蔽特定位的写入操作,这里表示不屏蔽任意一位模板值写入
 
-	mirrorDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	mirrorDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-	mirrorDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
-	mirrorDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	/// 根据深度\模板测试结果, 对正面朝向三角形执行何种运算
+	mirrorDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;// StencilFailOp表示仅当像素片段在stencil测试失败, 如何更新后续的stencil缓存; D3D12_STENCIL_OP_KEEP表示不修改stencil,保持原有数据
+	mirrorDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;// StencilDepthFailOp表示stencil测试通过,但深度测试失败, 如何更新后续的stencil缓存; D3D12_STENCIL_OP_KEEP表示不修改stencil,保持原有数据
+	mirrorDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;// StencilPassOp表示当像素片段均通过2种测试,如何更新后续的stencil缓存; D3D12_STENCIL_OP_REPLACE表示把模板替换成StencilRef, StencilRef值在Draw()里指定
+	mirrorDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;// StencilFunc即那个D3D12_COMPARISON_FUNC比较函数,与Draw()里设置的stencilRef相关联; 这里手动指定为总是返回true;
 
-	// We are not rendering backfacing polygons, so these settings do not matter.
-	mirrorDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	// 由于此处不渲染背面三角形,所以对背面三角形的渲染此处无足轻重
+	/// 根据深度\模板测试结果, 对背面朝向三角形执行何种运算
+	mirrorDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;// 
 	mirrorDSS.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
 	mirrorDSS.BackFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
 	mirrorDSS.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC markMirrorsPsoDesc = opaquePsoDesc;
 	markMirrorsPsoDesc.BlendState = mirrorBlendState;
-	markMirrorsPsoDesc.DepthStencilState = mirrorDSS;
+	markMirrorsPsoDesc.DepthStencilState = mirrorDSS;//使用D3D12_DEPTH_STENCIL_DESC实例来填充流水线的DepthStencilState字段
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&markMirrorsPsoDesc, IID_PPV_ARGS(&mPSOs["markStencilMirrors"])));
 
 	//
@@ -1053,6 +1055,7 @@ void StencilApp::BuildMaterials()
 	checkertile->FresnelR0 = XMFLOAT3(0.07f, 0.07f, 0.07f);
 	checkertile->Roughness = 0.3f;
 
+	// 镜子材质
 	auto icemirror = std::make_unique<Material>();
 	icemirror->Name = "icemirror";
 	icemirror->MatCBIndex = 2;
