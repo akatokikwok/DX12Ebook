@@ -23,6 +23,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "10_BlendDemo", "Chapter 10 
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "11_StencilDemo", "Chapter 11 Stenciling\11_StencilDemo\11_StencilDemo.vcxproj", "{ED31E485-8024-4276-AEAD-75A0981B1E15}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "12_TreeBillboards", "Chapter 12 The Geometry Shader\12_TreeBillboards\12_TreeBillboards.vcxproj", "{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -111,6 +113,14 @@ Global
 		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Release|x64.Build.0 = Release|x64
 		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Release|x86.ActiveCfg = Release|Win32
 		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Release|x86.Build.0 = Release|Win32
+		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Debug|x64.ActiveCfg = Debug|x64
+		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Debug|x64.Build.0 = Debug|x64
+		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Debug|x86.ActiveCfg = Debug|Win32
+		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Debug|x86.Build.0 = Debug|Win32
+		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Release|x64.ActiveCfg = Release|x64
+		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Release|x64.Build.0 = Release|x64
+		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Release|x86.ActiveCfg = Release|Win32
+		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
