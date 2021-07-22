@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // TreeBillboardsApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -126,7 +126,7 @@ private:
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mStdInputLayout;
-	std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeSpriteInputLayout;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeSpriteInputLayout;// 公告牌的输入布局
 
 	RenderItem* mWavesRitem = nullptr;
 
@@ -159,14 +159,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	try     {
+	try {
 		TreeBillboardsApp theApp(hInstance);
 		if (!theApp.Initialize())
 			return 0;
 
 		return theApp.Run();
 	}
-	catch (DxException& e)     {
+	catch (DxException& e) {
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
 		return 0;
 	}
@@ -241,7 +241,7 @@ void TreeBillboardsApp::Update(const GameTimer& gt)
 
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
-	if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)     {
+	if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence) {
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
 		ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
 		WaitForSingleObject(eventHandle, INFINITE);
@@ -339,7 +339,7 @@ void TreeBillboardsApp::OnMouseUp(WPARAM btnState, int x, int y)
 
 void TreeBillboardsApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-	if ((btnState & MK_LBUTTON) != 0)     {
+	if ((btnState & MK_LBUTTON) != 0) {
 		// Make each pixel correspond to a quarter of a degree.
 		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
 		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
@@ -350,7 +350,7 @@ void TreeBillboardsApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	}     else if ((btnState & MK_RBUTTON) != 0)     {
+	} else if ((btnState & MK_RBUTTON) != 0) {
 		// Make each pixel correspond to 0.2 unit in the scene.
 		float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
@@ -413,10 +413,10 @@ void TreeBillboardsApp::AnimateMaterials(const GameTimer& gt)
 void TreeBillboardsApp::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
-	for (auto& e : mAllRitems) 	{
+	for (auto& e : mAllRitems) {
 		// Only update the cbuffer data if the constants have changed.  
 		// This needs to be tracked per frame resource.
-		if (e->NumFramesDirty > 0) 		{
+		if (e->NumFramesDirty > 0) {
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
@@ -435,11 +435,11 @@ void TreeBillboardsApp::UpdateObjectCBs(const GameTimer& gt)
 void TreeBillboardsApp::UpdateMaterialCBs(const GameTimer& gt)
 {
 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-	for (auto& e : mMaterials) 	{
+	for (auto& e : mMaterials) {
 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
 		// data changes, it needs to be updated for each FrameResource.
 		Material* mat = e.second.get();
-		if (mat->NumFramesDirty > 0) 		{
+		if (mat->NumFramesDirty > 0) {
 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
 
 			MaterialConstants matConstants;
@@ -495,7 +495,7 @@ void TreeBillboardsApp::UpdateWaves(const GameTimer& gt)
 {
 	// Every quarter second, generate a random wave.
 	static float t_base = 0.0f;
-	if ((mTimer.TotalTime() - t_base) >= 0.25f) 	{
+	if ((mTimer.TotalTime() - t_base) >= 0.25f) {
 		t_base += 0.25f;
 
 		int i = MathHelper::Rand(4, mWaves->RowCount() - 5);
@@ -511,7 +511,7 @@ void TreeBillboardsApp::UpdateWaves(const GameTimer& gt)
 
 	// Update the wave vertex buffer with the new solution.
 	auto currWavesVB = mCurrFrameResource->WavesVB.get();
-	for (int i = 0; i < mWaves->VertexCount(); ++i) 	{
+	for (int i = 0; i < mWaves->VertexCount(); ++i) {
 		Vertex v;
 
 		v.Pos = mWaves->Position(i);
@@ -592,7 +592,7 @@ void TreeBillboardsApp::BuildRootSignature()
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
 		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
 
-	if (errorBlob != nullptr)     {
+	if (errorBlob != nullptr) {
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	}
 	ThrowIfFailed(hr);
@@ -678,7 +678,7 @@ void TreeBillboardsApp::BuildShadersAndInputLayouts()
 	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
 
 	mShaders["treeSpriteVS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", nullptr, "VS", "vs_5_0");
-	mShaders["treeSpriteGS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", nullptr, "GS", "gs_5_0");
+	mShaders["treeSpriteGS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", nullptr, "GS", "gs_5_0");// 把Shaders\\TreeSprite.hlsl中名为GS的几何着色器编译为字节码
 	mShaders["treeSpritePS"] = d3dUtil::CompileShader(L"Shaders\\TreeSprite.hlsl", alphaTestDefines, "PS", "ps_5_0");
 
 	mStdInputLayout =
@@ -690,8 +690,8 @@ void TreeBillboardsApp::BuildShadersAndInputLayouts()
 
 	mTreeSpriteInputLayout =
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "SIZE", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "SIZE",     0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 }
 
@@ -707,7 +707,7 @@ void TreeBillboardsApp::BuildLandGeometry()
 	//
 
 	std::vector<Vertex> vertices(grid.Vertices.size());
-	for (size_t i = 0; i < grid.Vertices.size(); ++i)     {
+	for (size_t i = 0; i < grid.Vertices.size(); ++i) {
 		auto& p = grid.Vertices[i].Position;
 		vertices[i].Pos = p;
 		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
@@ -759,8 +759,8 @@ void TreeBillboardsApp::BuildWavesGeometry()
 	int m = mWaves->RowCount();
 	int n = mWaves->ColumnCount();
 	int k = 0;
-	for (int i = 0; i < m - 1; ++i)     {
-		for (int j = 0; j < n - 1; ++j)         {
+	for (int i = 0; i < m - 1; ++i) {
+		for (int j = 0; j < n - 1; ++j) {
 			indices[k] = i * n + j;
 			indices[k + 1] = i * n + j + 1;
 			indices[k + 2] = (i + 1) * n + j;
@@ -810,7 +810,7 @@ void TreeBillboardsApp::BuildBoxGeometry()
 	GeometryGenerator::MeshData box = geoGen.CreateBox(8.0f, 8.0f, 8.0f, 3);
 
 	std::vector<Vertex> vertices(box.Vertices.size());
-	for (size_t i = 0; i < box.Vertices.size(); ++i) 	{
+	for (size_t i = 0; i < box.Vertices.size(); ++i) {
 		auto& p = box.Vertices[i].Position;
 		vertices[i].Pos = p;
 		vertices[i].Normal = box.Vertices[i].Normal;
@@ -854,15 +854,16 @@ void TreeBillboardsApp::BuildBoxGeometry()
 
 void TreeBillboardsApp::BuildTreeSpritesGeometry()
 {
+	// 自定义1个vertex结构体 来描述公告牌
 	struct TreeSpriteVertex
 	{
 		XMFLOAT3 Pos;
-		XMFLOAT2 Size;
+		XMFLOAT2 Size;// 表示公告牌的宽和高
 	};
 
 	static const int treeCount = 16;
 	std::array<TreeSpriteVertex, 16> vertices;
-	for (UINT i = 0; i < treeCount; ++i) 	{
+	for (UINT i = 0; i < treeCount; ++i) {
 		float x = MathHelper::RandF(-45.0f, 45.0f);
 		float z = MathHelper::RandF(-45.0f, 45.0f);
 		float y = GetHillsHeight(x, z);
@@ -988,7 +989,7 @@ void TreeBillboardsApp::BuildPSOs()
 		reinterpret_cast<BYTE*>(mShaders["treeSpriteVS"]->GetBufferPointer()),
 		mShaders["treeSpriteVS"]->GetBufferSize()
 	};
-	treeSpritePsoDesc.GS =
+	treeSpritePsoDesc.GS = // GS也要指定为流水线上的对象的一部分
 	{
 		reinterpret_cast<BYTE*>(mShaders["treeSpriteGS"]->GetBufferPointer()),
 		mShaders["treeSpriteGS"]->GetBufferSize()
@@ -998,7 +999,7 @@ void TreeBillboardsApp::BuildPSOs()
 		reinterpret_cast<BYTE*>(mShaders["treeSpritePS"]->GetBufferPointer()),
 		mShaders["treeSpritePS"]->GetBufferSize()
 	};
-	treeSpritePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+	treeSpritePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;// 树木的图元指定为点
 	treeSpritePsoDesc.InputLayout = { mTreeSpriteInputLayout.data(), (UINT)mTreeSpriteInputLayout.size() };
 	treeSpritePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
@@ -1007,7 +1008,7 @@ void TreeBillboardsApp::BuildPSOs()
 
 void TreeBillboardsApp::BuildFrameResources()
 {
-	for (int i = 0; i < gNumFrameResources; ++i)     {
+	for (int i = 0; i < gNumFrameResources; ++i) {
 		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
 			1, (UINT)mAllRitems.size(), (UINT)mMaterials.size(), mWaves->VertexCount()));
 	}
@@ -1124,7 +1125,7 @@ void TreeBillboardsApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, cons
 	auto matCB = mCurrFrameResource->MaterialCB->Resource();
 
 	// For each render item...
-	for (size_t i = 0; i < ritems.size(); ++i)     {
+	for (size_t i = 0; i < ritems.size(); ++i) {
 		auto ri = ritems[i];
 
 		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
