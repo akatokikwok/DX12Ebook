@@ -19,7 +19,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "9_TexWaves", "Chapter 9 Tex
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "9_TexColumns", "Chapter 9 Texturing\9_TexColumns\9_TexColumns.vcxproj", "{BF0FC25E-C790-4EC7-978D-AAA0E3127B5A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BlendDemo", "Chapter 10 Blending\BlendDemo\BlendDemo.vcxproj", "{3BBA9588-1E11-40C7-8C8B-2F36F3C6B033}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "10_BlendDemo", "Chapter 10 Blending\BlendDemo\BlendDemo.vcxproj", "{3BBA9588-1E11-40C7-8C8B-2F36F3C6B033}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "11_StencilDemo", "Chapter 11 Stenciling\11_StencilDemo\11_StencilDemo.vcxproj", "{ED31E485-8024-4276-AEAD-75A0981B1E15}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -101,6 +103,14 @@ Global
 		{3BBA9588-1E11-40C7-8C8B-2F36F3C6B033}.Release|x64.Build.0 = Release|x64
 		{3BBA9588-1E11-40C7-8C8B-2F36F3C6B033}.Release|x86.ActiveCfg = Release|Win32
 		{3BBA9588-1E11-40C7-8C8B-2F36F3C6B033}.Release|x86.Build.0 = Release|Win32
+		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Debug|x64.ActiveCfg = Debug|x64
+		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Debug|x64.Build.0 = Debug|x64
+		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Debug|x86.ActiveCfg = Debug|Win32
+		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Debug|x86.Build.0 = Debug|Win32
+		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Release|x64.ActiveCfg = Release|x64
+		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Release|x64.Build.0 = Release|x64
+		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Release|x86.ActiveCfg = Release|Win32
+		{ED31E485-8024-4276-AEAD-75A0981B1E15}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
