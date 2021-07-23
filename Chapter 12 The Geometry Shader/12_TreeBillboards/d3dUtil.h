@@ -33,19 +33,19 @@ extern const int gNumFrameResources;
 
 inline void d3dSetDebugName(IDXGIObject* obj, const char* name)
 {
-	if (obj) {
+	if (obj)     {
 		obj->SetPrivateData(WKPDID_D3DDebugObjectName, lstrlenA(name), name);
 	}
 }
 inline void d3dSetDebugName(ID3D12Device* obj, const char* name)
 {
-	if (obj) {
+	if (obj)     {
 		obj->SetPrivateData(WKPDID_D3DDebugObjectName, lstrlenA(name), name);
 	}
 }
 inline void d3dSetDebugName(ID3D12DeviceChild* obj, const char* name)
 {
-	if (obj) {
+	if (obj)     {
 		obj->SetPrivateData(WKPDID_D3DDebugObjectName, lstrlenA(name), name);
 	}
 }
@@ -157,7 +157,7 @@ struct SubmeshGeometry
 	UINT IndexCount = 0;// 单个子几何体的index count
 	UINT StartIndexLocation = 0;// 全局顶点/索引缓存 中 起始index
 	INT BaseVertexLocation = 0;// 全局顶点/索引缓存 中 基准地址
-
+	
 	DirectX::BoundingBox Bounds;// 当前子网格中所存有的 几何体包围盒
 };
 
@@ -272,10 +272,13 @@ struct Material
 
 struct Texture
 {
-	std::string Name;											// 纹理的唯一识别名字
-	std::wstring Filename;										// 纹理来源.dds文件
-	Microsoft::WRL::ComPtr<ID3D12Resource> Resource = nullptr;  // 纹理本身,就是一份D3D12Resource
-	Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap = nullptr;// 纹理里带一个UploadHeap,是一份D3D12Resource
+	// Unique material name for lookup.
+	std::string Name;
+
+	std::wstring Filename;
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> Resource = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap = nullptr;
 };
 
 #ifndef ThrowIfFailed
