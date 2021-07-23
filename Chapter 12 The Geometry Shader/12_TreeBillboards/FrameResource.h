@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../../Common/d3dUtil.h"
 #include "../../Common/MathHelper.h"
@@ -10,6 +10,7 @@ struct ObjectConstants
 	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
 };
 
+// 杂项常数缓存数据(含有光源数组, 雾气特效因子, 眼睛位置, 环境光, 计时器)
 struct PassConstants
 {
     DirectX::XMFLOAT4X4 View = MathHelper::Identity4x4();
@@ -41,15 +42,17 @@ struct PassConstants
     Light Lights[MaxLights];
 };
 
+// 山峰/波浪 要用到的顶点结构体
 struct Vertex
 {
-    DirectX::XMFLOAT3 Pos;
-    DirectX::XMFLOAT3 Normal;
-	DirectX::XMFLOAT2 TexC;
+    DirectX::XMFLOAT3 Pos;      // 点的位置
+    DirectX::XMFLOAT3 Normal;   // 点的法线
+	DirectX::XMFLOAT2 TexC;     // 点的纹理坐标
 };
 
-// Stores the resources needed for the CPU to build the command lists
-// for a frame.  
+/*存储CPU构建帧的命令列表所需的资源
+* 构造器是FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount, UINT waveVertCount);
+ */ 
 struct FrameResource
 {
 public:
