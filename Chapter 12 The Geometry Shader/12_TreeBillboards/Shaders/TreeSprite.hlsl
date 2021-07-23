@@ -1,4 +1,4 @@
-ï»¿//***************************************************************************************
+//***************************************************************************************
 // TreeSprite.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -18,10 +18,10 @@
 // Include structures and functions for lighting.
 #include "LightingUtil.hlsl"
 
-// æŒæœ‰4ä¸ªçº¹ç†å…ƒç´ çš„çº¹ç†æ•°ç»„,æ¯ä¸ªçº¹ç†å…ƒç´ ä¸­éƒ½æŒæœ‰ç‹¬ç‰¹çš„æ ‘æœ¨çº¹ç†
-Texture2DArray gTreeMapArray : register(t0); // è¿™é‡Œä½¿ç”¨ä¸“å±çš„ç±»å‹,çº¹ç†æ•°ç»„
+// ³ÖÓĞ4¸öÎÆÀíÔªËØµÄÎÆÀíÊı×é,Ã¿¸öÎÆÀíÔªËØÖĞ¶¼³ÖÓĞ¶ÀÌØµÄÊ÷Ä¾ÎÆÀí
+Texture2DArray gTreeMapArray : register(t0); // ÕâÀïÊ¹ÓÃ×¨ÊôµÄÀàĞÍ,ÎÆÀíÊı×é
 
-// ä¸€äº›é‡‡æ ·å™¨
+// Ò»Ğ©²ÉÑùÆ÷
 SamplerState gsamPointWrap : register(s0);
 SamplerState gsamPointClamp : register(s1);
 SamplerState gsamLinearWrap : register(s2);
@@ -64,10 +64,10 @@ cbuffer cbPass : register(b1)
     // indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
     // indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)
     // are spot lights for a maximum of MaxLights per object.
-    Light gLights[MaxLights]; // å…‰æºæ•°ç»„åœ¨ä¸»PASS CBé‡Œ
+    Light gLights[MaxLights]; // ¹âÔ´Êı×éÔÚÖ÷PASS CBÀï
 };
 
-// æ¯ç§æè´¨åŒºåˆ†çš„å¸¸é‡
+// Ã¿ÖÖ²ÄÖÊÇø·ÖµÄ³£Á¿
 cbuffer cbMaterial : register(b2)
 {
     float4 gDiffuseAlbedo;
@@ -79,12 +79,12 @@ cbuffer cbMaterial : register(b2)
 struct VertexIn
 {
     float3 PosW : POSITION;
-    float2 SizeW : SIZE; // å­˜æ”¾æœ‰å…¬å‘Šç‰Œçš„å®½å’Œé«˜
+    float2 SizeW : SIZE; // ´æ·ÅÓĞ¹«¸æÅÆµÄ¿íºÍ¸ß
 };
 
 struct VertexOut
 {
-    float3 CenterW : POSITION; // å…¬å‘Šç‰Œä¸­å¿ƒç‚¹
+    float3 CenterW : POSITION; // ¹«¸æÅÆÖĞĞÄµã
     float2 SizeW : SIZE;
 };
 
@@ -97,40 +97,40 @@ struct GeoOut
     uint PrimID : SV_PrimitiveID;
 };
 
-/// é¡¶ç‚¹shader
+/// ¶¥µãshader
 VertexOut VS(VertexIn vin)
 {
     VertexOut vout;
 
-	// åœ¨è¿™èŠ‚é¡¶ç‚¹shaderé‡Œ ç›´æ¥æŠŠæ•°æ®ä¼ å…¥ å‡ ä½•shader
+	// ÔÚÕâ½Ú¶¥µãshaderÀï Ö±½Ó°ÑÊı¾İ´«Èë ¼¸ºÎshader
     vout.CenterW = vin.PosW;
     vout.SizeW = vin.SizeW;
 
     return vout;
 }
  
-// è¯¥ç€è‰²å™¨åŠŸèƒ½æ˜¯æŠŠå…¬å‘Šç‰Œä¸­é—´çš„1ä¸ªç‚¹æ‰©å±•ä¸º1ä¸ªå››è¾¹å½¢,å¹¶ä½¿ä¹‹ä¸yè½´å¯¹é½ä»¥å§‹ç»ˆæ­£å¯¹çœ¼ç›
-// è¿™ä¸ªè¯­æ³•è¡¨ç¤ºè®¾ç½®shaderå®šä¹‰ä¹‹å‰çš„æœ€å¤§vertexæ•°é‡; 4æ˜¯å‡ ä½•shaderå•æ¬¡è°ƒç”¨æ‰€è¾“å‡ºé¡¶ç‚¹çš„æœ€å¤§æ•°é‡
-// è¾“å‡ºçš„æ ‡é‡ä¸ªæ•°ä¸º é¡¶ç‚¹ç±»å‹ç»“æ„ä½“ä¸­æ ‡é‡ä¸ªæ•° * maxvertexcount
+// ¸Ã×ÅÉ«Æ÷¹¦ÄÜÊÇ°Ñ¹«¸æÅÆÖĞ¼äµÄ1¸öµãÀ©Õ¹Îª1¸öËÄ±ßĞÎ,²¢Ê¹Ö®ÓëyÖá¶ÔÆëÒÔÊ¼ÖÕÕı¶ÔÑÛ¾¦
+// Õâ¸öÓï·¨±íÊ¾ÉèÖÃshader¶¨ÒåÖ®Ç°µÄ×î´óvertexÊıÁ¿; 4ÊÇ¼¸ºÎshaderµ¥´Îµ÷ÓÃËùÊä³ö¶¥µãµÄ×î´óÊıÁ¿
+// Êä³öµÄ±êÁ¿¸öÊıÎª ¶¥µãÀàĞÍ½á¹¹ÌåÖĞ±êÁ¿¸öÊı * maxvertexcount
 [maxvertexcount(4)]
 void GS(point VertexOut gin[1],
-        uint primID : SV_PrimitiveID, // è‹¥æŒ‡å®šSV_PrimitiveIDè¯­ä¹‰,åˆ™åœ¨è¾“å…¥è£…é…é˜¶æ®µä¼šä¸ºæ¯ä¸ªå›¾å…ƒç”Ÿæˆå›¾å…ƒIDä»0~n-1,å‡ ä½•ç€è‰²å™¨ä»…æŠŠå›¾å…ƒIDå†™åˆ°è¾“å‡ºçš„é¡¶ç‚¹é‡Œ,ä»¥æ­¤ä½œä¸ºä¸€ç§ä¿¡æ¯ä¼ å‡ºåˆ°åƒç´ ç€è‰²å™¨é˜¶æ®µ,è€Œåƒç´ ç€è‰²å™¨ä¼šæŠŠå›¾å…ƒIDç”¨ä½œçº¹ç†æ•°ç»„çš„ç´¢å¼•
-  inout TriangleStream<GeoOut> triStream // è¾“å‡ºå‚æ•°å¿…é¡»è¦æœ‰inoutä¿®é¥°ç¬¦,ä¸”å¿…é¡»æ˜¯æµç±»å‹
-  // å¯¹äºçº¿æ¡å’Œä¸‰è§’å½¢è€Œè¨€,å‡ ä½•shaderè¾“å‡ºçš„å¯¹åº”å›¾å…ƒå¿…å®šæ˜¯çº¿æ¡stripå’Œä¸‰è§’å½¢strip,è‡³äºçº¿æ¡åˆ—è¡¨å’Œä¸‰è§’å½¢åˆ—è¡¨å¯å€ŸåŠ©ResstartStripå®ç°
+        uint primID : SV_PrimitiveID, // ÈôÖ¸¶¨SV_PrimitiveIDÓïÒå,ÔòÔÚÊäÈë×°Åä½×¶Î»áÎªÃ¿¸öÍ¼ÔªÉú³ÉÍ¼ÔªID´Ó0~n-1,¼¸ºÎ×ÅÉ«Æ÷½ö°ÑÍ¼ÔªIDĞ´µ½Êä³öµÄ¶¥µãÀï,ÒÔ´Ë×÷ÎªÒ»ÖÖĞÅÏ¢´«³öµ½ÏñËØ×ÅÉ«Æ÷½×¶Î,¶øÏñËØ×ÅÉ«Æ÷»á°ÑÍ¼ÔªIDÓÃ×÷ÎÆÀíÊı×éµÄË÷Òı
+  inout TriangleStream<GeoOut> triStream // Êä³ö²ÎÊı±ØĞëÒªÓĞinoutĞŞÊÎ·û,ÇÒ±ØĞëÊÇÁ÷ÀàĞÍ
+  // ¶ÔÓÚÏßÌõºÍÈı½ÇĞÎ¶øÑÔ,¼¸ºÎshaderÊä³öµÄ¶ÔÓ¦Í¼Ôª±Ø¶¨ÊÇÏßÌõstripºÍÈı½ÇĞÎstrip,ÖÁÓÚÏßÌõÁĞ±íºÍÈı½ÇĞÎÁĞ±í¿É½èÖúResstartStripÊµÏÖ
 )
 {
 	//
-	// è®¡ç®—å¹¿å‘Šç‰Œç›¸å¯¹äºä¸–ç•Œçš„å±€éƒ¨åæ ‡ç©ºé—´ï¼Œä½¿å¹¿å‘Šç‰Œä¸yè½´å¯¹é½ï¼Œé¢å‘çœ¼ç›.
+	// ¼ÆËã¹ã¸æÅÆÏà¶ÔÓÚÊÀ½çµÄ¾Ö²¿×ø±ê¿Õ¼ä£¬Ê¹¹ã¸æÅÆÓëyÖá¶ÔÆë£¬ÃæÏòÑÛ¾¦.
 	
-	// å‚è§P409çš„å›¾
-    float3 up = float3(0.0f, 1.0f, 0.0f); // å…¬å‘Šç‰Œå››è¾¹å½¢æ²¿yè½´å‘ä¸Šå•ä½å‘é‡
-    float3 look = gEyePosW - gin[0].CenterW; // ä»å…¬å‘Šç‰Œå››è¾¹å½¢å‡ ä½•ä¸­å¿ƒæŒ‡å‘çœ¼ç›çš„å‘é‡
-    look.y = 0.0f; // yè½´å¯¹é½,æŠ•å½±åˆ°xzå¹³é¢
-    look = normalize(look); // è§„èŒƒåŒ–
-    float3 right = cross(up, look); // æŠŠlookå’Œupå‰ç§¯å¾—åˆ°right
+	// ²Î¼ûP409µÄÍ¼
+    float3 up = float3(0.0f, 1.0f, 0.0f); // ¹«¸æÅÆËÄ±ßĞÎÑØyÖáÏòÉÏµ¥Î»ÏòÁ¿
+    float3 look = gEyePosW - gin[0].CenterW; // ´Ó¹«¸æÅÆËÄ±ßĞÎ¼¸ºÎÖĞĞÄÖ¸ÏòÑÛ¾¦µÄÏòÁ¿
+    look.y = 0.0f; // yÖá¶ÔÆë,Í¶Ó°µ½xzÆ½Ãæ
+    look = normalize(look); // ¹æ·¶»¯
+    float3 right = cross(up, look); // °ÑlookºÍup²æ»ıµÃµ½right
 
 	//
-	// Compute triangle strip vertices (quad) in world space.è®¡ç®—ä¸‰è§’å½¢å¸¦åœ¨ä¸–ç•Œç©ºé—´çš„4ä¸ªé¡¶ç‚¹(å³é‚£ä¸ªè¢«æ‰©å±•å¼€çš„å››è¾¹å½¢)
+	// Compute triangle strip vertices (quad) in world space.¼ÆËãÈı½ÇĞÎ´øÔÚÊÀ½ç¿Õ¼äµÄ4¸ö¶¥µã(¼´ÄÇ¸ö±»À©Õ¹¿ªµÄËÄ±ßĞÎ)
 	//
     float halfWidth = 0.5f * gin[0].SizeW.x;
     float halfHeight = 0.5f * gin[0].SizeW.y;
@@ -141,10 +141,10 @@ void GS(point VertexOut gin[1],
     v[3] = float4(gin[0].CenterW - halfWidth * right + halfHeight * up, 1.0f);
 
 	//
-	// å°†å››è¾¹å½¢çš„é¡¶ç‚¹ä»å±€éƒ¨åæ ‡ç³»å˜æ¢åˆ°ä¸–ç•Œç©ºé—´é‡Œ,å¹¶å°†å®ƒä»¬ä»¥ä¸‰è§’å½¢å¸¦ æ¨¡å¼è¾“å‡º
+	// ½«ËÄ±ßĞÎµÄ¶¥µã´Ó¾Ö²¿×ø±êÏµ±ä»»µ½ÊÀ½ç¿Õ¼äÀï,²¢½«ËüÃÇÒÔÈı½ÇĞÎ´ø Ä£Ê½Êä³ö
 	//
 	
-    float2 texC[4] = // æœ‰ä¸€ç»„å¸¦4ä¸ªUV
+    float2 texC[4] = // ÓĞÒ»×é´ø4¸öUV
     {
         float2(0.0f, 1.0f),
 		float2(0.0f, 0.0f),
@@ -160,44 +160,44 @@ void GS(point VertexOut gin[1],
         gout.PosW = v[i].xyz;
         gout.NormalW = look;
         gout.TexC = texC[i];
-        gout.PrimID = primID; // å‡ ä½•ç€è‰²å™¨ä»…æŠŠå›¾å…ƒIDå†™åˆ°è¾“å‡ºçš„é¡¶ç‚¹é‡Œ,ä»¥æ­¤ä½œä¸ºä¸€ç§ä¿¡æ¯ä¼ å‡ºåˆ°åƒç´ ç€è‰²å™¨é˜¶æ®µ,è€Œåƒç´ ç€è‰²å™¨ä¼šæŠŠå›¾å…ƒIDç”¨ä½œçº¹ç†æ•°ç»„çš„ç´¢å¼•
+        gout.PrimID = primID; // ¼¸ºÎ×ÅÉ«Æ÷½ö°ÑÍ¼ÔªIDĞ´µ½Êä³öµÄ¶¥µãÀï,ÒÔ´Ë×÷ÎªÒ»ÖÖĞÅÏ¢´«³öµ½ÏñËØ×ÅÉ«Æ÷½×¶Î,¶øÏñËØ×ÅÉ«Æ÷»á°ÑÍ¼ÔªIDÓÃ×÷ÎÆÀíÊı×éµÄË÷Òı
 		
-        triStream.Append(gout); // ä½¿ç”¨Appendå†…ç½®æ–¹æ³•å‘è¾“å‡ºæµåˆ—è¡¨ æ·»åŠ å•ä¸ªé¡¶ç‚¹
+        triStream.Append(gout); // Ê¹ÓÃAppendÄÚÖÃ·½·¨ÏòÊä³öÁ÷ÁĞ±í Ìí¼Óµ¥¸ö¶¥µã
     }
 }
 
-/// åƒç´ ç€è‰²å™¨
+/// ÏñËØ×ÅÉ«Æ÷
 float4 PS(GeoOut pin) : SV_Target
 {
-    // çº¹ç†æ•°ç»„ä½¿ç”¨ä¹‹å‰GSé˜¶æ®µä¼ å‡ºæ¥çš„å›¾å…ƒIDä¿¡æ¯,æŠŠå®ƒå½“åšçº¹ç†æ•°ç»„çš„ç´¢å¼•; ç¬¬3å‚æ•°æ˜¯çº¹ç†æ•°ç»„çš„ç´¢å¼•;
-    // ä½¿ç”¨äº†çº¹ç†æ•°ç»„,å¯ä»¥è®©è®¾ç½®çº¹ç†å’Œç»˜åˆ¶è°ƒç”¨éƒ½å‡å°‘åˆ°åªæœ‰ä¸€æ¬¡
+    // ÎÆÀíÊı×éÊ¹ÓÃÖ®Ç°GS½×¶Î´«³öÀ´µÄÍ¼ÔªIDĞÅÏ¢,°ÑËüµ±×öÎÆÀíÊı×éµÄË÷Òı; µÚ3²ÎÊıÊÇÎÆÀíÊı×éµÄË÷Òı;
+    // Ê¹ÓÃÁËÎÆÀíÊı×é,¿ÉÒÔÈÃÉèÖÃÎÆÀíºÍ»æÖÆµ÷ÓÃ¶¼¼õÉÙµ½Ö»ÓĞÒ»´Î
     float3 uvw = float3(pin.TexC, pin.PrimID % 3);
-    // å¯¹çº¹ç†æ•°ç»„æ‰§è¡Œé‡‡æ · æå–æ­¤åƒç´ çš„æ¼«åå°„ç‡ å¹¶ä¸ æè´¨å¸¸é‡é‡Œçš„åç…§ç‡ ç›¸ä¹˜
+    // ¶ÔÎÆÀíÊı×éÖ´ĞĞ²ÉÑù ÌáÈ¡´ËÏñËØµÄÂş·´ÉäÂÊ ²¢Óë ²ÄÖÊ³£Á¿ÀïµÄ·´ÕÕÂÊ Ïà³Ë
     float4 diffuseAlbedo = gTreeMapArray.Sample(gsamAnisotropicWrap, uvw) * gDiffuseAlbedo;
 	
 #ifdef ALPHA_TEST
-	// å¿½è§†çº¹ç†é˜¿å°”æ³•å€¼å°äº0.1çš„åƒç´ ,è¦å°½æ—©åšå®Œ,ä»¥ä¾¿å¿«é€Ÿé€€å‡ºç€è‰²å™¨;è®©é‚£äº›åƒç´ ç‰‡æ®µå‰”é™¤æ‰
+	// ºöÊÓÎÆÀí°¢¶û·¨ÖµĞ¡ÓÚ0.1µÄÏñËØ,Òª¾¡Ôç×öÍê,ÒÔ±ã¿ìËÙÍË³ö×ÅÉ«Æ÷;ÈÃÄÇĞ©ÏñËØÆ¬¶ÎÌŞ³ıµô
 	clip(diffuseAlbedo.a - 0.1f);
 #endif
 
-    // å¯¹æ³•çº¿æ’å€¼ä¼šå¯¼è‡´å…¶éè§„èŒƒåŒ–,æ‰€ä»¥è¿™é‡Œé‡æ–°è§„èŒƒåŒ–ä¸€ä¸‹
+    // ¶Ô·¨Ïß²åÖµ»áµ¼ÖÂÆä·Ç¹æ·¶»¯,ËùÒÔÕâÀïÖØĞÂ¹æ·¶»¯Ò»ÏÂ
     pin.NormalW = normalize(pin.NormalW);
 
-    // ä»å¾®è¡¨é¢1ç‚¹æŒ‡å‘çœ¼ç›
+    // ´ÓÎ¢±íÃæ1µãÖ¸ÏòÑÛ¾¦
     float3 toEyeW = gEyePosW - pin.PosW;
     float distToEye = length(toEyeW);
     toEyeW /= distToEye; // normalize
 
-    // ç¯å¢ƒå…‰ç…§ == æ¼«åç…§ç‡ * æ‚é¡¹å¸¸é‡é‡Œçš„ç¯å¢ƒå…‰ç¯æº
+    // »·¾³¹âÕÕ == Âş·´ÕÕÂÊ * ÔÓÏî³£Á¿ÀïµÄ»·¾³¹âµÆÔ´
     float4 ambient = gAmbientLight * diffuseAlbedo;
 
     const float shininess = 1.0f - gRoughness;
     Material mat = { diffuseAlbedo, gFresnelR0, shininess };
     float3 shadowFactor = 1.0f;
-    // ç›´æ¥å…‰ç…§è®¡ç®—
+    // Ö±½Ó¹âÕÕ¼ÆËã
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
         pin.NormalW, toEyeW, shadowFactor);
-    // ç‚¹äº®çš„æœ€ç»ˆé¢œè‰² == ç¯å¢ƒå…‰ç…§ + ç›´æ¥å…‰ç…§
+    // µãÁÁµÄ×îÖÕÑÕÉ« == »·¾³¹âÕÕ + Ö±½Ó¹âÕÕ
     float4 litColor = ambient + directLight;
 
 #ifdef FOG
@@ -205,7 +205,7 @@ float4 PS(GeoOut pin) : SV_Target
 	litColor = lerp(litColor, gFogColor, fogAmount);
 #endif
 
-    // ç‚¹äº®é¢œè‰²çš„é˜¿å°”æ³•å€¼ ä»æ¼«åç…§ç‡é‡Œå–
+    // µãÁÁÑÕÉ«µÄ°¢¶û·¨Öµ ´ÓÂş·´ÕÕÂÊÀïÈ¡
     litColor.a = diffuseAlbedo.a;
 
     return litColor;
