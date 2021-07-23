@@ -18,7 +18,8 @@
 // Include structures and functions for lighting.
 #include "LightingUtil.hlsl"
 
-Texture2DArray gTreeMapArray : register(t0); // 有一组纹理,是描述公告牌树用的
+// 持有4个纹理元素的纹理数组,每个纹理元素中都持有独特的树木纹理
+Texture2DArray gTreeMapArray : register(t0); // 这里使用专属的类型,纹理数组
 
 // 一些采样器
 SamplerState gsamPointWrap : register(s0);
@@ -159,7 +160,7 @@ void GS(point VertexOut gin[1],
         gout.PosW = v[i].xyz;
         gout.NormalW = look;
         gout.TexC = texC[i];
-        gout.PrimID = primID;
+        gout.PrimID = primID; // 几何着色器仅把图元ID写到输出的顶点里,以此作为一种信息传出到像素着色器阶段,而像素着色器会把图元ID用作纹理数组的索引
 		
         triStream.Append(gout); // 使用Append内置方法向输出流列表 添加单个顶点
     }
@@ -168,9 +169,10 @@ void GS(point VertexOut gin[1],
 /// 像素着色器
 float4 PS(GeoOut pin) : SV_Target
 {
-    // 纹理数组使用之前GS阶段传出来的图元ID信息,把它当做纹理数组的索引
+    // 纹理数组使用之前GS阶段传出来的图元ID信息,把它当做纹理数组的索引; 第3参数是纹理数组的索引;
+    // 使用了纹理数组,可以让设置纹理和绘制调用都减少到只有一次
     float3 uvw = float3(pin.TexC, pin.PrimID % 3);
-    // 从2D纹理集里 提取此像素的漫反射率 并与 材质常量里的反照率 相乘
+    // 对纹理数组执行采样 提取此像素的漫反射率 并与 材质常量里的反照率 相乘
     float4 diffuseAlbedo = gTreeMapArray.Sample(gsamAnisotropicWrap, uvw) * gDiffuseAlbedo;
 	
 #ifdef ALPHA_TEST

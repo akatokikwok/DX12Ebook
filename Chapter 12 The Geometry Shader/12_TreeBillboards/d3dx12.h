@@ -1178,6 +1178,13 @@ struct CD3DX12_GPU_DESCRIPTOR_HANDLE : public D3D12_GPU_DESCRIPTOR_HANDLE
 };
 
 //------------------------------------------------------------------------------------------------
+/*使用此函数计算纹理数组的里的子资源 
+* MipSlice: MIP切片索引
+* ArraySlice: 纹理数组切片索引
+* PlaneSlice: 平面切片索引
+* MipLevels: mipmap层级
+* ArraySize: 纹理数组大小
+ */ 
 inline UINT D3D12CalcSubresource( UINT MipSlice, UINT ArraySlice, UINT PlaneSlice, UINT MipLevels, UINT ArraySize )
 { 
     return MipSlice + ArraySlice * MipLevels + PlaneSlice * MipLevels * ArraySize; 

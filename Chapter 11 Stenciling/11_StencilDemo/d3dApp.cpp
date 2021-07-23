@@ -177,7 +177,7 @@ void D3DApp::OnResize()
 	depthStencilDesc.Alignment = 0;									// 
 	depthStencilDesc.Width = mClientWidth;							// 纹理宽度
 	depthStencilDesc.Height = mClientHeight;						// 纹理高度
-	depthStencilDesc.DepthOrArraySize = 1;							// 纹理深度
+	depthStencilDesc.DepthOrArraySize = 1;							// 指定纹理数组所存储的元素个数
 	depthStencilDesc.MipLevels = 1;									// mipmap层级数量,对于深度模板缓存仅允许有一个mipmap层级
 	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;			// 用以指定纹素的格式
 	depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;		// 多重采样的质量级别以及对每个像素的采样次数

@@ -554,7 +554,9 @@ void TreeBillboardsApp::LoadTextures()
 
 	auto treeArrayTex = std::make_unique<Texture>();
 	treeArrayTex->Name = "treeArrayTex";
-	treeArrayTex->Filename = L"../../Textures/treeArray2.dds";
+	treeArrayTex->Filename = L"../../Textures/treeArray2.dds";// 这个文件是通过微软的texassemble工具把4个.dds合并成一个treeArray2的纹理数组.dds
+	// 若给定纹理数组的索引及其mipmap层级,则可以找到第i个数组切片,第j个mip切片处的子资源
+
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), treeArrayTex->Filename.c_str(),
 		treeArrayTex->Resource, treeArrayTex->UploadHeap));
