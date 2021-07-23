@@ -25,6 +25,14 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "11_StencilDemo", "Chapter 1
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "12_TreeBillboards", "Chapter 12 The Geometry Shader\12_TreeBillboards\12_TreeBillboards.vcxproj", "{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "13_Blur", "Chapter 13 The Compute Shader\13_Blur\13_Blur.vcxproj", "{48BA6B3B-B053-4A99-A700-ADF2A786B82D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "13_SobelFilter", "Chapter 13 The Compute Shader\13_SobelFilter\13_SobelFilter.vcxproj", "{CB79B905-264E-49A1-8E78-246148B04E4D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "13_VecAdd", "Chapter 13 The Compute Shader\13_VecAdd\13_VecAdd.vcxproj", "{8AC29C2D-89EF-48CD-98C4-3FC0F377D9BD}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "13_WavesCS", "Chapter 13 The Compute Shader\13_WavesCS\13_WavesCS.vcxproj", "{A6103641-8A5C-4CD9-80C9-862618F2B28C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -121,6 +129,38 @@ Global
 		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Release|x64.Build.0 = Release|x64
 		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Release|x86.ActiveCfg = Release|Win32
 		{8EC83ABB-1AF4-4CB9-A09F-405ACAB12B51}.Release|x86.Build.0 = Release|Win32
+		{48BA6B3B-B053-4A99-A700-ADF2A786B82D}.Debug|x64.ActiveCfg = Debug|x64
+		{48BA6B3B-B053-4A99-A700-ADF2A786B82D}.Debug|x64.Build.0 = Debug|x64
+		{48BA6B3B-B053-4A99-A700-ADF2A786B82D}.Debug|x86.ActiveCfg = Debug|Win32
+		{48BA6B3B-B053-4A99-A700-ADF2A786B82D}.Debug|x86.Build.0 = Debug|Win32
+		{48BA6B3B-B053-4A99-A700-ADF2A786B82D}.Release|x64.ActiveCfg = Release|x64
+		{48BA6B3B-B053-4A99-A700-ADF2A786B82D}.Release|x64.Build.0 = Release|x64
+		{48BA6B3B-B053-4A99-A700-ADF2A786B82D}.Release|x86.ActiveCfg = Release|Win32
+		{48BA6B3B-B053-4A99-A700-ADF2A786B82D}.Release|x86.Build.0 = Release|Win32
+		{CB79B905-264E-49A1-8E78-246148B04E4D}.Debug|x64.ActiveCfg = Debug|x64
+		{CB79B905-264E-49A1-8E78-246148B04E4D}.Debug|x64.Build.0 = Debug|x64
+		{CB79B905-264E-49A1-8E78-246148B04E4D}.Debug|x86.ActiveCfg = Debug|Win32
+		{CB79B905-264E-49A1-8E78-246148B04E4D}.Debug|x86.Build.0 = Debug|Win32
+		{CB79B905-264E-49A1-8E78-246148B04E4D}.Release|x64.ActiveCfg = Release|x64
+		{CB79B905-264E-49A1-8E78-246148B04E4D}.Release|x64.Build.0 = Release|x64
+		{CB79B905-264E-49A1-8E78-246148B04E4D}.Release|x86.ActiveCfg = Release|Win32
+		{CB79B905-264E-49A1-8E78-246148B04E4D}.Release|x86.Build.0 = Release|Win32
+		{8AC29C2D-89EF-48CD-98C4-3FC0F377D9BD}.Debug|x64.ActiveCfg = Debug|x64
+		{8AC29C2D-89EF-48CD-98C4-3FC0F377D9BD}.Debug|x64.Build.0 = Debug|x64
+		{8AC29C2D-89EF-48CD-98C4-3FC0F377D9BD}.Debug|x86.ActiveCfg = Debug|Win32
+		{8AC29C2D-89EF-48CD-98C4-3FC0F377D9BD}.Debug|x86.Build.0 = Debug|Win32
+		{8AC29C2D-89EF-48CD-98C4-3FC0F377D9BD}.Release|x64.ActiveCfg = Release|x64
+		{8AC29C2D-89EF-48CD-98C4-3FC0F377D9BD}.Release|x64.Build.0 = Release|x64
+		{8AC29C2D-89EF-48CD-98C4-3FC0F377D9BD}.Release|x86.ActiveCfg = Release|Win32
+		{8AC29C2D-89EF-48CD-98C4-3FC0F377D9BD}.Release|x86.Build.0 = Release|Win32
+		{A6103641-8A5C-4CD9-80C9-862618F2B28C}.Debug|x64.ActiveCfg = Debug|x64
+		{A6103641-8A5C-4CD9-80C9-862618F2B28C}.Debug|x64.Build.0 = Debug|x64
+		{A6103641-8A5C-4CD9-80C9-862618F2B28C}.Debug|x86.ActiveCfg = Debug|Win32
+		{A6103641-8A5C-4CD9-80C9-862618F2B28C}.Debug|x86.Build.0 = Debug|Win32
+		{A6103641-8A5C-4CD9-80C9-862618F2B28C}.Release|x64.ActiveCfg = Release|x64
+		{A6103641-8A5C-4CD9-80C9-862618F2B28C}.Release|x64.Build.0 = Release|x64
+		{A6103641-8A5C-4CD9-80C9-862618F2B28C}.Release|x86.ActiveCfg = Release|Win32
+		{A6103641-8A5C-4CD9-80C9-862618F2B28C}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
