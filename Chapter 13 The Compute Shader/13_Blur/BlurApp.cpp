@@ -161,14 +161,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	try     {
+	try {
 		BlurApp theApp(hInstance);
 		if (!theApp.Initialize())
 			return 0;
 
 		return theApp.Run();
 	}
-	catch (DxException& e)     {
+	catch (DxException& e) {
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
 		return 0;
 	}
@@ -234,7 +234,7 @@ void BlurApp::OnResize()
 	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
 
-	if (mBlurFilter != nullptr) 	{
+	if (mBlurFilter != nullptr) {
 		mBlurFilter->OnResize(mClientWidth, mClientHeight);
 	}
 }
@@ -250,7 +250,7 @@ void BlurApp::Update(const GameTimer& gt)
 
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
-	if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)     {
+	if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence) {
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
 		ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
 		WaitForSingleObject(eventHandle, INFINITE);
@@ -354,7 +354,7 @@ void BlurApp::OnMouseUp(WPARAM btnState, int x, int y)
 
 void BlurApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-	if ((btnState & MK_LBUTTON) != 0)     {
+	if ((btnState & MK_LBUTTON) != 0) {
 		// Make each pixel correspond to a quarter of a degree.
 		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
 		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
@@ -365,7 +365,7 @@ void BlurApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	}     else if ((btnState & MK_RBUTTON) != 0)     {
+	} else if ((btnState & MK_RBUTTON) != 0) {
 		// Make each pixel correspond to 0.2 unit in the scene.
 		float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
@@ -428,10 +428,10 @@ void BlurApp::AnimateMaterials(const GameTimer& gt)
 void BlurApp::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
-	for (auto& e : mAllRitems) 	{
+	for (auto& e : mAllRitems) {
 		// Only update the cbuffer data if the constants have changed.  
 		// This needs to be tracked per frame resource.
-		if (e->NumFramesDirty > 0) 		{
+		if (e->NumFramesDirty > 0) {
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
@@ -450,11 +450,11 @@ void BlurApp::UpdateObjectCBs(const GameTimer& gt)
 void BlurApp::UpdateMaterialCBs(const GameTimer& gt)
 {
 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-	for (auto& e : mMaterials) 	{
+	for (auto& e : mMaterials) {
 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
 		// data changes, it needs to be updated for each FrameResource.
 		Material* mat = e.second.get();
-		if (mat->NumFramesDirty > 0) 		{
+		if (mat->NumFramesDirty > 0) {
 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
 
 			MaterialConstants matConstants;
@@ -510,7 +510,7 @@ void BlurApp::UpdateWaves(const GameTimer& gt)
 {
 	// Every quarter second, generate a random wave.
 	static float t_base = 0.0f;
-	if ((mTimer.TotalTime() - t_base) >= 0.25f) 	{
+	if ((mTimer.TotalTime() - t_base) >= 0.25f) {
 		t_base += 0.25f;
 
 		int i = MathHelper::Rand(4, mWaves->RowCount() - 5);
@@ -526,7 +526,7 @@ void BlurApp::UpdateWaves(const GameTimer& gt)
 
 	// Update the wave vertex buffer with the new solution.
 	auto currWavesVB = mCurrFrameResource->WavesVB.get();
-	for (int i = 0; i < mWaves->VertexCount(); ++i) 	{
+	for (int i = 0; i < mWaves->VertexCount(); ++i) {
 		Vertex v;
 
 		v.Pos = mWaves->Position(i);
@@ -599,7 +599,7 @@ void BlurApp::BuildRootSignature()
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
 		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
 
-	if (errorBlob != nullptr)     {
+	if (errorBlob != nullptr) {
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	}
 	ThrowIfFailed(hr);
@@ -611,6 +611,7 @@ void BlurApp::BuildRootSignature()
 		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
+/// 该函数用于CS着色器的根签名
 void BlurApp::BuildPostProcessRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE srvTable;
@@ -619,10 +620,9 @@ void BlurApp::BuildPostProcessRootSignature()
 	CD3DX12_DESCRIPTOR_RANGE uavTable;
 	uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
 
-	// Root parameter can be a table, root descriptor or root constants.
+	// 3个根参数
 	CD3DX12_ROOT_PARAMETER slotRootParameter[3];
-
-	// Perfomance TIP: Order from most frequent to least frequent.
+	// 按更新频率由高至低填写根参数
 	slotRootParameter[0].InitAsConstants(12, 0);
 	slotRootParameter[1].InitAsDescriptorTable(1, &srvTable);
 	slotRootParameter[2].InitAsDescriptorTable(1, &uavTable);
@@ -632,17 +632,15 @@ void BlurApp::BuildPostProcessRootSignature()
 		0, nullptr,
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	// 创建1个具有3个槽位的根签名,第一个指向常数缓存,第二个指向含有单个SRV的描述符表,第三个指向含有单个UAV的描述符表
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
 		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
-
-	if (errorBlob != nullptr) 	{
+	if (errorBlob != nullptr) {
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	}
 	ThrowIfFailed(hr);
-
 	ThrowIfFailed(md3dDevice->CreateRootSignature(
 		0,
 		serializedRootSig->GetBufferPointer(),
@@ -745,7 +743,7 @@ void BlurApp::BuildLandGeometry()
 	//
 
 	std::vector<Vertex> vertices(grid.Vertices.size());
-	for (size_t i = 0; i < grid.Vertices.size(); ++i)     {
+	for (size_t i = 0; i < grid.Vertices.size(); ++i) {
 		auto& p = grid.Vertices[i].Position;
 		vertices[i].Pos = p;
 		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
@@ -797,8 +795,8 @@ void BlurApp::BuildWavesGeometry()
 	int m = mWaves->RowCount();
 	int n = mWaves->ColumnCount();
 	int k = 0;
-	for (int i = 0; i < m - 1; ++i)     {
-		for (int j = 0; j < n - 1; ++j)         {
+	for (int i = 0; i < m - 1; ++i) {
+		for (int j = 0; j < n - 1; ++j) {
 			indices[k] = i * n + j;
 			indices[k + 1] = i * n + j + 1;
 			indices[k + 2] = (i + 1) * n + j;
@@ -848,7 +846,7 @@ void BlurApp::BuildBoxGeometry()
 	GeometryGenerator::MeshData box = geoGen.CreateBox(8.0f, 8.0f, 8.0f, 3);
 
 	std::vector<Vertex> vertices(box.Vertices.size());
-	for (size_t i = 0; i < box.Vertices.size(); ++i) 	{
+	for (size_t i = 0; i < box.Vertices.size(); ++i) {
 		auto& p = box.Vertices[i].Position;
 		vertices[i].Pos = p;
 		vertices[i].Normal = box.Vertices[i].Normal;
@@ -985,7 +983,7 @@ void BlurApp::BuildPSOs()
 
 void BlurApp::BuildFrameResources()
 {
-	for (int i = 0; i < gNumFrameResources; ++i)     {
+	for (int i = 0; i < gNumFrameResources; ++i) {
 		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
 			1, (UINT)mAllRitems.size(), (UINT)mMaterials.size(), mWaves->VertexCount()));
 	}
@@ -1080,7 +1078,7 @@ void BlurApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vec
 	auto matCB = mCurrFrameResource->MaterialCB->Resource();
 
 	// For each render item...
-	for (size_t i = 0; i < ritems.size(); ++i)     {
+	for (size_t i = 0; i < ritems.size(); ++i) {
 		auto ri = ritems[i];
 
 		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());

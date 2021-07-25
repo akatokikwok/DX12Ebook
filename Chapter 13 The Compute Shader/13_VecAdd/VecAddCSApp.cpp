@@ -17,6 +17,7 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
+// 结构化缓冲区用的 结构体
 struct Data
 {
 	XMFLOAT3 v1;
@@ -153,14 +154,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	try     {
+	try {
 		VecAddCSApp theApp(hInstance);
 		if (!theApp.Initialize())
 			return 0;
 
 		return theApp.Run();
 	}
-	catch (DxException& e)     {
+	catch (DxException& e) {
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
 		return 0;
 	}
@@ -226,7 +227,7 @@ void VecAddCSApp::Update(const GameTimer& gt)
 
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
-	if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)     {
+	if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence) {
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
 		ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
 		WaitForSingleObject(eventHandle, INFINITE);
@@ -301,7 +302,7 @@ void VecAddCSApp::OnMouseUp(WPARAM btnState, int x, int y)
 
 void VecAddCSApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-	if ((btnState & MK_LBUTTON) != 0)     {
+	if ((btnState & MK_LBUTTON) != 0) {
 		// Make each pixel correspond to a quarter of a degree.
 		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
 		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
@@ -312,7 +313,7 @@ void VecAddCSApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 		// Restrict the angle mPhi.
 		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-	}     else if ((btnState & MK_RBUTTON) != 0)     {
+	} else if ((btnState & MK_RBUTTON) != 0) {
 		// Make each pixel correspond to 0.2 unit in the scene.
 		float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
 		float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
@@ -338,63 +339,103 @@ void VecAddCSApp::DoComputeWork()
 	// Reusing the command list reuses memory.
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSOs["vecAdd"].Get()));
 
-	mCommandList->SetComputeRootSignature(mRootSignature.Get());
+	/// 绑定之前所创建出来的缓冲区以供分派调用使用
+	mCommandList->SetComputeRootSignature(mRootSignature.Get());// 绑定计算着色器的根签名
+	mCommandList->SetComputeRootShaderResourceView(0, mInputBufferA->GetGPUVirtualAddress());// 绑定计算着色器的SRV,0号,
+	mCommandList->SetComputeRootShaderResourceView(1, mInputBufferB->GetGPUVirtualAddress());// 绑定计算着色器的SRV,1号
+	mCommandList->SetComputeRootUnorderedAccessView(2, mOutputBuffer->GetGPUVirtualAddress());// 绑定计算着色器的UAV,2号
+	mCommandList->Dispatch(1, 1, 1);// 线程组派发
 
-	mCommandList->SetComputeRootShaderResourceView(0, mInputBufferA->GetGPUVirtualAddress());
-	mCommandList->SetComputeRootShaderResourceView(1, mInputBufferB->GetGPUVirtualAddress());
-	mCommandList->SetComputeRootUnorderedAccessView(2, mOutputBuffer->GetGPUVirtualAddress());
-
-	mCommandList->Dispatch(1, 1, 1);
-
-	// Schedule to copy the data to the default buffer to the readback buffer.
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
-		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_SOURCE));
-
+	/// 按计划将数据从默认缓存 拷贝至 回读缓存(即系统内存缓冲区) 里
+	// 先把原先的那个默认堆资源字段 mOutputBuffer 状态切换成 拷贝目标
+	mCommandList->ResourceBarrier(1, 
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			mOutputBuffer.Get(), 
+			D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_SOURCE)
+	);
+	// 把默认堆数据源mOutputBuffer作为数据源 拷贝至 回读堆资源字段mReadBackBuffer里
 	mCommandList->CopyResource(mReadBackBuffer.Get(), mOutputBuffer.Get());
+	// 最后顺便再把mOutputBuffer从拷贝目标状态重新切换为普通状态
+	mCommandList->ResourceBarrier(1, 
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			mOutputBuffer.Get(),
+			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COMMON)
+	);
 
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOutputBuffer.Get(),
-		D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COMMON));
-
-	// Done recording commands.
+	// 结束命令记录并构建命令队列数组并打进队列里执行
 	ThrowIfFailed(mCommandList->Close());
-
-	// Add the command list to the queue for execution.
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-	// Wait for the work to finish.
+	// 强制等待GPU执行完毕
 	FlushCommandQueue();
 
-	// Map the data so we can read it on CPU.
+	// 对 回读堆资源字段mReadBackBuffer 执行映射,以便CPU读取
 	Data* mappedData = nullptr;
 	ThrowIfFailed(mReadBackBuffer->Map(0, nullptr, reinterpret_cast<void**>(&mappedData)));
-
+	// fout这个文件用以保存CS着色器输出的结果
 	std::ofstream fout("results.txt");
-
-	for (int i = 0; i < NumDataElements; ++i) 	{
+	// 让每个结构换buffer 仅有32个元素,因为1个线程组就可以同时处理32个元素;待程序所有线程都完成CS SHADER的任务后,就可以把CS结果存到文件results.txt中
+	for (int i = 0; i < NumDataElements; ++i) {
 		fout << "(" << mappedData[i].v1.x << ", " << mappedData[i].v1.y << ", " << mappedData[i].v1.z <<
 			", " << mappedData[i].v2.x << ", " << mappedData[i].v2.y << ")" << std::endl;
 	}
-
+	// 解除对回读堆资源mReadBackBuffer 的映射
 	mReadBackBuffer->Unmap(0, nullptr);
 }
 
 void VecAddCSApp::BuildBuffers()
 {
-	// Generate some data.
+	// 初始化操作; 生成一些数据来填充 SRV BUFFER
+ 	// 让每个结构换buffer 仅有32个元素,因为1个线程组就可以同时处理32个元素;待程序所有线程都完成CS SHADER的任务后,就可以把CS结果存到文件results.txt中
+	// 结论:CPU与GPU之间的存储器复制是最缓慢的
 	std::vector<Data> dataA(NumDataElements);
 	std::vector<Data> dataB(NumDataElements);
-	for (int i = 0; i < NumDataElements; ++i) 	{
+	for (int i = 0; i < NumDataElements; ++i) {
 		dataA[i].v1 = XMFLOAT3(i, i, i);
 		dataA[i].v2 = XMFLOAT2(i, 0);
 
 		dataB[i].v1 = XMFLOAT3(-i, i, 0.0f);
 		dataB[i].v2 = XMFLOAT2(0, -i);
 	}
+	// =====================最后存在result.txt里的那些初始化数据应该如下====================
+	//(0, 0, 0, 0, 0)
+	//(0, 2, 1, 1, -1)
+	//(0, 4, 2, 2, -2)
+	//(0, 6, 3, 3, -3)
+	//(0, 8, 4, 4, -4)
+	//(0, 10, 5, 5, -5)
+	//(0, 12, 6, 6, -6)
+	//(0, 14, 7, 7, -7)
+	//(0, 16, 8, 8, -8)
+	//(0, 18, 9, 9, -9)
+	//(0, 20, 10, 10, -10)
+	//(0, 22, 11, 11, -11)
+	//(0, 24, 12, 12, -12)
+	//(0, 26, 13, 13, -13)
+	//(0, 28, 14, 14, -14)
+	//(0, 30, 15, 15, -15)
+	//(0, 32, 16, 16, -16)
+	//(0, 34, 17, 17, -17)
+	//(0, 36, 18, 18, -18)
+	//(0, 38, 19, 19, -19)
+	//(0, 40, 20, 20, -20)
+	//(0, 42, 21, 21, -21)
+	//(0, 44, 22, 22, -22)
+	//(0, 46, 23, 23, -23)
+	//(0, 48, 24, 24, -24)
+	//(0, 50, 25, 25, -25)
+	//(0, 52, 26, 26, -26)
+	//(0, 54, 27, 27, -27)
+	//(0, 56, 28, 28, -28)
+	//(0, 58, 29, 29, -29)
+	//(0, 60, 30, 30, -30)
+	//(0, 62, 31, 31, -31)
+
 
 	UINT64 byteSize = dataA.size() * sizeof(Data);
 
-	// Create some buffers to be used as SRVs.
+	// 创建若干buffer 来用作 SRV
 	mInputBufferA = d3dUtil::CreateDefaultBuffer(
 		md3dDevice.Get(),
 		mCommandList.Get(),
@@ -409,7 +450,7 @@ void VecAddCSApp::BuildBuffers()
 		byteSize,
 		mInputUploadBufferB);
 
-	// Create the buffer that will be a UAV.
+	// 创建若干缓存区 来用作 UAV
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
@@ -418,8 +459,9 @@ void VecAddCSApp::BuildBuffers()
 		nullptr,
 		IID_PPV_ARGS(&mOutputBuffer)));
 
+	// 创建1个系统内存缓冲区,以便处理GPU资源回传给CPU的 回读处理结果
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),/*注意这里是Type_READBACK*/
 		D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(byteSize),
 		D3D12_RESOURCE_STATE_COPY_DEST,
@@ -432,12 +474,11 @@ void VecAddCSApp::BuildRootSignature()
 	// Root parameter can be a table, root descriptor or root constants.
 	CD3DX12_ROOT_PARAMETER slotRootParameter[3];
 
-	// Perfomance TIP: Order from most frequent to least frequent.
+	// 0号和1号根参数初始化为 SRV视图,2号初始华为UAV视图
 	slotRootParameter[0].InitAsShaderResourceView(0);
 	slotRootParameter[1].InitAsShaderResourceView(1);
 	slotRootParameter[2].InitAsUnorderedAccessView(0);
 
-	// A root signature is an array of root parameters.
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter,
 		0, nullptr,
 		D3D12_ROOT_SIGNATURE_FLAG_NONE);
@@ -448,7 +489,7 @@ void VecAddCSApp::BuildRootSignature()
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
 		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
 
-	if (errorBlob != nullptr)     {
+	if (errorBlob != nullptr) {
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	}
 	ThrowIfFailed(hr);
@@ -485,7 +526,7 @@ void VecAddCSApp::BuildPSOs()
 
 void VecAddCSApp::BuildFrameResources()
 {
-	for (int i = 0; i < gNumFrameResources; ++i)     {
+	for (int i = 0; i < gNumFrameResources; ++i) {
 		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
 			1));
 	}

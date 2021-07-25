@@ -1,4 +1,4 @@
-//=============================================================================
+﻿//=============================================================================
 // WaveSim.hlsl by Frank Luna (C) 2011 All Rights Reserved.
 //
 // UpdateWavesCS(): Solves 2D wave equation using the compute shader.
@@ -23,16 +23,13 @@ RWTexture2D<float> gCurrSolInput : register(u1);
 RWTexture2D<float> gOutput       : register(u2);
  
 [numthreads(16, 16, 1)]
-void UpdateWavesCS(int3 dispatchThreadID : SV_DispatchThreadID)
+void UpdateWavesCS(int3 dispatchThreadID : SV_DispatchThreadID)// 使用整数索引
 {
-	// We do not need to do bounds checking because:
-	//	 *out-of-bounds reads return 0, which works for us--it just means the boundary of 
-	//    our water simulation is clamped to 0 in local space.
-	//   *out-of-bounds writes are a no-op.
-	
+	// 暂存分发线程的x y坐标
 	int x = dispatchThreadID.x;
 	int y = dispatchThreadID.y;
 
+	// 输出纹理由如下形式构成
 	gOutput[int2(x,y)] = 
 		gWaveConstant0 * gPrevSolInput[int2(x,y)].r +
 		gWaveConstant1 * gCurrSolInput[int2(x,y)].r +
@@ -45,7 +42,8 @@ void UpdateWavesCS(int3 dispatchThreadID : SV_DispatchThreadID)
 
 [numthreads(1, 1, 1)]
 void DisturbWavesCS(int3 groupThreadID : SV_GroupThreadID,
-                    int3 dispatchThreadID : SV_DispatchThreadID)
+                    int3 dispatchThreadID : SV_DispatchThreadID
+)
 {
 	// We do not need to do bounds checking because:
 	//	 *out-of-bounds reads return 0, which works for us--it just means the boundary of 

@@ -709,7 +709,7 @@ void WavesCSApp::BuildShadersAndInputLayout()
 	mShaders["wavesVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", waveDefines, "VS", "vs_5_0");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", defines, "PS", "ps_5_0");
 	mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_0");
-	mShaders["wavesUpdateCS"] = d3dUtil::CompileShader(L"Shaders\\WaveSim.hlsl", nullptr, "UpdateWavesCS", "cs_5_0");
+	mShaders["wavesUpdateCS"] = d3dUtil::CompileShader(L"Shaders\\WaveSim.hlsl", nullptr, "UpdateWavesCS", "cs_5_0");// CS着色器编译为字节码
 	mShaders["wavesDisturbCS"] = d3dUtil::CompileShader(L"Shaders\\WaveSim.hlsl", nullptr, "DisturbWavesCS", "cs_5_0");
 
 	mInputLayout =
@@ -963,8 +963,8 @@ void WavesCSApp::BuildPSOs()
 	//
 	// PSO for updating waves
 	//
-	D3D12_COMPUTE_PIPELINE_STATE_DESC wavesUpdatePSO = {};
-	wavesUpdatePSO.pRootSignature = mWavesRootSignature.Get();
+	D3D12_COMPUTE_PIPELINE_STATE_DESC wavesUpdatePSO = {};// 创建计算着色器流水线状态
+	wavesUpdatePSO.pRootSignature = mWavesRootSignature.Get();// mWavesRootSignature这个根签名定义了什么参数才是CS着色器期望的输入
 	wavesUpdatePSO.CS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["wavesUpdateCS"]->GetBufferPointer()),

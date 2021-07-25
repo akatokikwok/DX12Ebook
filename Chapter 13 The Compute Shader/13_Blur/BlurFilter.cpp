@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // BlurFilter.cpp by Frank Luna (C) 2011 All Rights Reserved.
 //***************************************************************************************
 
@@ -64,6 +64,7 @@ void BlurFilter::Execute(ID3D12GraphicsCommandList* cmdList,
 	auto weights = CalcGaussWeights(2.5f);
 	int blurRadius = (int)weights.size() / 2;
 
+	/// 在分派调用开始前,需要为CS着色器绑定常量数据与资源VIEW
 	cmdList->SetComputeRootSignature(rootSig);
 
 	cmdList->SetComputeRoot32BitConstants(0, 1, &blurRadius, 0);
@@ -98,7 +99,7 @@ void BlurFilter::Execute(ID3D12GraphicsCommandList* cmdList,
 		// How many groups do we need to dispatch to cover a row of pixels, where each
 		// group covers 256 pixels (the 256 is defined in the ComputeShader).
 		UINT numGroupsX = (UINT)ceilf(mWidth / 256.0f);
-		cmdList->Dispatch(numGroupsX, mHeight, 1);
+		cmdList->Dispatch(numGroupsX, mHeight, 1);// 启动线程组（此方法开启1个线程组构成的3d网格）
 
 		cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
 			D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
@@ -163,19 +164,19 @@ std::vector<float> BlurFilter::CalcGaussWeights(float sigma)
 
 void BlurFilter::BuildDescriptors()
 {
+	// SRV
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = mFormat;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Texture2D.MipLevels = 1;
-
+	// UAV
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-
 	uavDesc.Format = mFormat;
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 	uavDesc.Texture2D.MipSlice = 0;
-
+	
 	md3dDevice->CreateShaderResourceView(mBlurMap0.Get(), &srvDesc, mBlur0CpuSrv);
 	md3dDevice->CreateUnorderedAccessView(mBlurMap0.Get(), nullptr, &uavDesc, mBlur0CpuUav);
 
@@ -191,6 +192,7 @@ void BlurFilter::BuildResources()
 	// could be bound as an UnorderedAccessView.  Therefore this format 
 	// does not support D3D11_BIND_UNORDERED_ACCESS.
 
+	// 为纹理创建UAV的示例
 	D3D12_RESOURCE_DESC texDesc;
 	ZeroMemory(&texDesc, sizeof(D3D12_RESOURCE_DESC));
 	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;

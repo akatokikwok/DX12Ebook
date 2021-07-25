@@ -1,7 +1,8 @@
-//=============================================================================
+﻿//=============================================================================
 // Performs a separable Guassian blur with a blur radius up to 5 pixels.
 //=============================================================================
 
+// Compute shader能访问的常量缓存数据
 cbuffer cbSettings : register(b0)
 {
 	// We cannot have an array entry in a constant buffer that gets mapped onto
@@ -26,16 +27,18 @@ cbuffer cbSettings : register(b0)
 static const int gMaxBlurRadius = 5;
 
 
-Texture2D gInput            : register(t0);
-RWTexture2D<float4> gOutput : register(u0);
+Texture2D gInput            : register(t0);// 计算着色器的数据源
+RWTexture2D<float4> gOutput : register(u0); // 计算着色器的输出;输出资源要与无序访问视图UAV关联
 
 #define N 256
 #define CacheSize (N + 2*gMaxBlurRadius)
 groupshared float4 gCache[CacheSize];
 
+/// 线程组中的线程数, 组中的线程允许被设置为1D,2D,3D的网格布局
 [numthreads(N, 1, 1)]
 void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID,
-				int3 dispatchThreadID : SV_DispatchThreadID)
+				int3 dispatchThreadID : SV_DispatchThreadID// 线程ID
+)
 {
 	// Put in an array for each indexing.
 	float weights[11] = { w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10 };

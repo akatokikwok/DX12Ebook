@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // GpuWaves.cpp by Frank Luna (C) 2011 All Rights Reserved.
 //***************************************************************************************
 
@@ -232,7 +232,7 @@ void GpuWaves::Update(
 	{
 		// Set the update constants.
 		cmdList->SetComputeRoot32BitConstants(0, 3, mK, 0);
-
+		// 通过给那几个输入纹理分别创建SRV,再把他们作为参数传入根参数,就可以把它们绑定微CS着色器的输入资源
 		cmdList->SetComputeRootDescriptorTable(1, mPrevSolUav);
 		cmdList->SetComputeRootDescriptorTable(2, mCurrSolUav);
 		cmdList->SetComputeRootDescriptorTable(3, mNextSolUav);
