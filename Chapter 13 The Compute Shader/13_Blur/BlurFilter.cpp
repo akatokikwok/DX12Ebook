@@ -22,11 +22,12 @@ ID3D12Resource* BlurFilter::Output()
 	return mBlurMap0.Get();
 }
 
+/// 设置一下纹理A和纹理B字段并执行偏移, 最后给纹理A和纹理B分别创建 SRV/UAV
 void BlurFilter::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor,
 	                              CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDescriptor,
 	                              UINT descriptorSize)
 {
-	// Save references to the descriptors. 
+	// 让这些字段保存对入参各描述符的引用
 	mBlur0CpuSrv = hCpuDescriptor;
 	mBlur0CpuUav = hCpuDescriptor.Offset(1, descriptorSize);
 	mBlur1CpuSrv = hCpuDescriptor.Offset(1, descriptorSize);
@@ -37,6 +38,7 @@ void BlurFilter::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor,
 	mBlur1GpuSrv = hGpuDescriptor.Offset(1, descriptorSize);
 	mBlur1GpuUav = hGpuDescriptor.Offset(1, descriptorSize);
 
+	// 给纹理A和纹理B分别创建 SRV和UAV
 	BuildDescriptors();
 }
 
@@ -46,10 +48,10 @@ void BlurFilter::OnResize(UINT newWidth, UINT newHeight)
 	{
 		mWidth = newWidth;
 		mHeight = newHeight;
-
+		// 以新的大小重建离屏纹理资源
 		BuildResources();
 
-		// New resource, so we need new descriptors to that resource.
+		// 由于重建了离屏纹理,也要顺便构建新的描述符 SRV&&UAV
 		BuildDescriptors();
 	}
 }
@@ -76,7 +78,7 @@ void BlurFilter::Execute(ID3D12GraphicsCommandList* cmdList,
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST));
 
-	// Copy the input (back-buffer in this example) to BlurMap0.
+	// 把后台缓存input复制到离屏纹理mBlurMap0里去
 	cmdList->CopyResource(mBlurMap0.Get(), input);
 	
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
@@ -162,6 +164,7 @@ std::vector<float> BlurFilter::CalcGaussWeights(float sigma)
 	return weights;
 }
 
+/// 给纹理A和纹理B分别创建 SRV和UAV
 void BlurFilter::BuildDescriptors()
 {
 	// SRV

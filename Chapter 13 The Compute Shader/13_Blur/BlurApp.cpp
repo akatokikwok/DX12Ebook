@@ -138,7 +138,7 @@ private:
 
 	std::unique_ptr<Waves> mWaves;
 
-	std::unique_ptr<BlurFilter> mBlurFilter;
+	std::unique_ptr<BlurFilter> mBlurFilter;// 模糊辅助类实例
 
 	PassConstants mMainPassCB;
 
@@ -230,10 +230,12 @@ void BlurApp::OnResize()
 {
 	D3DApp::OnResize();
 
+
 	// The window resized, so update the aspect ratio and recompute the projection matrix.
 	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
-
+	
+	// 模糊算法需要始终与窗口保持同样分辨率,所以要在OnReszie()里写
 	if (mBlurFilter != nullptr) {
 		mBlurFilter->OnResize(mClientWidth, mClientHeight);
 	}
@@ -696,6 +698,7 @@ void BlurApp::BuildDescriptorHeaps()
 	// Fill out the heap with the descriptors to the BlurFilter resources.
 	//
 
+	// 设置一下纹理A和纹理B字段并执行偏移, 最后给纹理A和纹理B分别创建 SRV/UAV
 	mBlurFilter->BuildDescriptors(
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 3, mCbvSrvUavDescriptorSize),
 		CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(), 3, mCbvSrvUavDescriptorSize),

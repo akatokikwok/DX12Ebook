@@ -159,6 +159,7 @@ void D3DApp::OnResize()
 	/* =====7. 为交换链里每个后台缓存创建渲染目标视图句柄 并 偏移到下一个句柄*/
 	// CD3D12构造函数利用给定的偏移值可以查找到当前backbuffer的RTV
 	// 使用CD3D12构造一个描述符句柄,供给后续创造RTV的时机用
+	// (原则上允许可以尝试创建另一个纹理,再为它创建RTV,然后绑定到流水线的OM阶段)
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());//是一个视图句柄
 	// 遍历查找交换链里每一个缓冲
 	for (UINT i = 0; i < SwapChainBufferCount; i++) {

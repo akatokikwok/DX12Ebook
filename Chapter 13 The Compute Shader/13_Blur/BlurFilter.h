@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // BlurFilter.h by Frank Luna (C) 2011 All Rights Reserved.
 //
 // Performs a blur operation on the topmost mip level of an input texture.
@@ -7,7 +7,10 @@
 #pragma once
 
 #include "../../Common/d3dUtil.h"
-
+/*模糊辅助类实例
+* 封装了模糊算法需要的纹理A、纹理B的SRV和UAV以及纹理资源;以便使用绘制/dispatch命令
+* 也提供开启模糊算法
+ */
 class BlurFilter
 {
 public:
