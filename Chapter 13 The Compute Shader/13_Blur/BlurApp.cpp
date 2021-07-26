@@ -308,6 +308,7 @@ void BlurApp::Draw(const GameTimer& gt)
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
 
+	// 模糊算法操作的具体执行
 	mBlurFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
 		mPSOs["horzBlur"].Get(), mPSOs["vertBlur"].Get(), CurrentBackBuffer(), 4);
 

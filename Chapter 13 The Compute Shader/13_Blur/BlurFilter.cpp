@@ -55,51 +55,52 @@ void BlurFilter::OnResize(UINT newWidth, UINT newHeight)
 		BuildDescriptors();
 	}
 }
- 
+
+/// 计算每个方向上要dispatch的线程组数量,并开启模糊运算
 void BlurFilter::Execute(ID3D12GraphicsCommandList* cmdList, 
 	                     ID3D12RootSignature* rootSig,
 	                     ID3D12PipelineState* horzBlurPSO,
 	                     ID3D12PipelineState* vertBlurPSO,
-                         ID3D12Resource* input, 
+                         ID3D12Resource* input,/*这里是后台缓存*/
 						 int blurCount)
 {
 	auto weights = CalcGaussWeights(2.5f);
-	int blurRadius = (int)weights.size() / 2;
+	int blurRadius = (int)weights.size() / 2;// 设定1个横向模糊半径值
 
 	/// 在分派调用开始前,需要为CS着色器绑定常量数据与资源VIEW
 	cmdList->SetComputeRootSignature(rootSig);
 
 	cmdList->SetComputeRoot32BitConstants(0, 1, &blurRadius, 0);
 	cmdList->SetComputeRoot32BitConstants(0, (UINT)weights.size(), weights.data(), 1);
-
+	// 后台缓存切换为 被拷贝资源
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(input,
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE));
-
+	// 纹理A切换为 拷贝结果
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST));
 
-	// 把后台缓存input复制到离屏纹理mBlurMap0里去
+	// 把后台缓存input复制到离屏纹理A里去, 离屏纹理A作为计算着色器的输入数据
 	cmdList->CopyResource(mBlurMap0.Get(), input);
-	
+	// 离屏纹理A切换为 只读
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
 		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
-
+	// 离屏纹理B切换为 无序访问状态
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap1.Get(),
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
  
+	// 一共循环执行多少次模糊操作
 	for(int i = 0; i < blurCount; ++i)
 	{
 		//
-		// Horizontal Blur pass.
+		// 水平方向上的模糊操作PASS
 		//
 
-		cmdList->SetPipelineState(horzBlurPSO);
+		cmdList->SetPipelineState(horzBlurPSO);// 切换流水线为 水平模糊PSO
 
 		cmdList->SetComputeRootDescriptorTable(1, mBlur0GpuSrv);
 		cmdList->SetComputeRootDescriptorTable(2, mBlur1GpuUav);
 
-		// How many groups do we need to dispatch to cover a row of pixels, where each
-		// group covers 256 pixels (the 256 is defined in the ComputeShader).
+		// 若单个线程组 可以处理256个像素,那么处理单行的像素需要分派的 线程组数量如下
 		UINT numGroupsX = (UINT)ceilf(mWidth / 256.0f);
 		cmdList->Dispatch(numGroupsX, mHeight, 1);// 启动线程组（此方法开启1个线程组构成的3d网格）
 
@@ -110,7 +111,7 @@ void BlurFilter::Execute(ID3D12GraphicsCommandList* cmdList,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ));
 
 		//
-		// Vertical Blur pass.
+		// 垂直方向上的模糊操作PASS
 		//
 
 		cmdList->SetPipelineState(vertBlurPSO);
