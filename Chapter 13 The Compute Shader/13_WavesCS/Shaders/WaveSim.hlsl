@@ -32,7 +32,7 @@ void UpdateWavesCS(int3 dispatchThreadID : SV_DispatchThreadID)
 	
 	int x = dispatchThreadID.x;
 	int y = dispatchThreadID.y;
-
+	// 通过调度线程ID 来索引 输入纹理及输出纹理
 	gOutput[int2(x,y)] = 
 		gWaveConstant0 * gPrevSolInput[int2(x,y)].r +
 		gWaveConstant1 * gCurrSolInput[int2(x,y)].r +
