@@ -1,4 +1,4 @@
-ï»¿//=============================================================================
+//=============================================================================
 // WaveSim.hlsl by Frank Luna (C) 2011 All Rights Reserved.
 //
 // UpdateWavesCS(): Solves 2D wave equation using the compute shader.
@@ -23,13 +23,13 @@ RWTexture2D<float> gCurrSolInput : register(u1);
 RWTexture2D<float> gOutput       : register(u2);
  
 [numthreads(16, 16, 1)]
-void UpdateWavesCS(int3 dispatchThreadID : SV_DispatchThreadID)// ä½¿ç”¨æ•´æ•°ç´¢å¼•
+void UpdateWavesCS(int3 dispatchThreadID : SV_DispatchThreadID)// Ê¹ÓÃÕûÊıË÷Òı
 {
-	// æš‚å­˜åˆ†å‘çº¿ç¨‹çš„x yåæ ‡
+	// Ôİ´æ·Ö·¢Ïß³ÌµÄx y×ø±ê
 	int x = dispatchThreadID.x;
 	int y = dispatchThreadID.y;
 
-	// è¾“å‡ºçº¹ç†ç”±å¦‚ä¸‹å½¢å¼æ„æˆ
+	// Êä³öÎÆÀíÓÉÈçÏÂĞÎÊ½¹¹³É
 	gOutput[int2(x,y)] = 
 		gWaveConstant0 * gPrevSolInput[int2(x,y)].r +
 		gWaveConstant1 * gCurrSolInput[int2(x,y)].r +

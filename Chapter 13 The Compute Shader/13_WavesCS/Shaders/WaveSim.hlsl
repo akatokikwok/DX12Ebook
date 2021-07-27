@@ -1,4 +1,4 @@
-ï»¿//=============================================================================
+//=============================================================================
 // WaveSim.hlsl by Frank Luna (C) 2011 All Rights Reserved.
 //
 // UpdateWavesCS(): Solves 2D wave equation using the compute shader.
@@ -32,7 +32,7 @@ void UpdateWavesCS(int3 dispatchThreadID : SV_DispatchThreadID)
 	
 	int x = dispatchThreadID.x;
 	int y = dispatchThreadID.y;
-	// é€šè¿‡è°ƒåº¦çº¿ç¨‹ID æ¥ç´¢å¼• è¾“å…¥çº¹ç†åŠè¾“å‡ºçº¹ç†
+	// Í¨¹ıµ÷¶ÈÏß³ÌID À´Ë÷Òı ÊäÈëÎÆÀí¼°Êä³öÎÆÀí
 	gOutput[int2(x,y)] = 
 		gWaveConstant0 * gPrevSolInput[int2(x,y)].r +
 		gWaveConstant1 * gCurrSolInput[int2(x,y)].r +

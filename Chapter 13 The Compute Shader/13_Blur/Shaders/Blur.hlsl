@@ -1,15 +1,15 @@
-ï»¿//=============================================================================
+//=============================================================================
 // Performs a separable Guassian blur with a blur radius up to 5 pixels.
 //=============================================================================
 
-// å¸¸æ•°ç¼“å­˜: æ¨¡ç³Šæƒå€¼; Compute shaderèƒ½è®¿é—®çš„å¸¸é‡ç¼“å­˜æ•°æ®
+// ³£Êı»º´æ: Ä£ºıÈ¨Öµ; Compute shaderÄÜ·ÃÎÊµÄ³£Á¿»º´æÊı¾İ
 cbuffer cbSettings : register(b0)
 {
-	//::::: ä¸èƒ½æŠŠæ ¹å¸¸é‡æ˜ å°„åˆ°ä½äº å¸¸æ•°ç¼“å­˜é‡Œçš„æ•°ç»„å…ƒç´ ,æ‰€ä»¥è¿™é‡Œé€‰æ‹©æŠŠå…ƒç´ éƒ½ä¸€ä¸€åˆ—å‡º	
+	//::::: ²»ÄÜ°Ñ¸ù³£Á¿Ó³Éäµ½Î»ÓÚ ³£Êı»º´æÀïµÄÊı×éÔªËØ,ËùÒÔÕâÀïÑ¡Ôñ°ÑÔªËØ¶¼Ò»Ò»ÁĞ³ö	
 	
-	int gBlurRadius;// æ¨¡ç³ŠåŠå¾„
+	int gBlurRadius;// Ä£ºı°ë¾¶
 
-	// æœ€å¤šæ”¯æŒ11ä¸ªæ¨¡ç³Šæƒå€¼
+	// ×î¶àÖ§³Ö11¸öÄ£ºıÈ¨Öµ
 	float w0;
 	float w1;
 	float w2;
@@ -23,67 +23,67 @@ cbuffer cbSettings : register(b0)
 	float w10;
 };
 
-static const int gMaxBlurRadius = 5;// å£°æ˜æœ€å¤§çš„æ¨¡ç³ŠåŠå¾„å€¼
+static const int gMaxBlurRadius = 5;// ÉùÃ÷×î´óµÄÄ£ºı°ë¾¶Öµ
 
-Texture2D gInput            : register(t0);// æœ‰1å¼ çº¹ç†;è®¡ç®—ç€è‰²å™¨çš„æ•°æ®æºçº¹ç†
-RWTexture2D<float4> gOutput : register(u0);// è®¡ç®—ç€è‰²å™¨çš„è¾“å‡º;è¾“å‡ºèµ„æºè¦ä¸æ— åºè®¿é—®è§†å›¾UAVå…³è”
+Texture2D gInput            : register(t0);// ÓĞ1ÕÅÎÆÀí;¼ÆËã×ÅÉ«Æ÷µÄÊı¾İÔ´ÎÆÀí
+RWTexture2D<float4> gOutput : register(u0);// ¼ÆËã×ÅÉ«Æ÷µÄÊä³ö;Êä³ö×ÊÔ´ÒªÓëÎŞĞò·ÃÎÊÊÓÍ¼UAV¹ØÁª
 
 #define N 256
-#define CacheSize (N + 2 * gMaxBlurRadius)// N+2Rç†è®º: åˆ†é…å‡ºèƒ½å¤Ÿå®¹çº³N + 2Rä¸ªå…ƒç´ çš„å…±äº«å†…å­˜,å¹¶ä¸”åœ¨Nä¸ªåƒç´ ä¸­æœ‰2Rä¸ªçº¿ç¨‹è¦å„è·å–2ä¸ªå…ƒç´ 
-groupshared float4 gCache[CacheSize];   // å£°æ˜å•ä¸ªçº¿ç¨‹ç»„å†…çš„"å…±äº«å†…å­˜",å…±äº«å†…å­˜å«æœ‰n+2rä¸ªå…ƒç´ 
+#define CacheSize (N + 2 * gMaxBlurRadius)// N+2RÀíÂÛ: ·ÖÅä³öÄÜ¹»ÈİÄÉN + 2R¸öÔªËØµÄ¹²ÏíÄÚ´æ,²¢ÇÒÔÚN¸öÏñËØÖĞÓĞ2R¸öÏß³ÌÒª¸÷»ñÈ¡2¸öÔªËØ
+groupshared float4 gCache[CacheSize];   // ÉùÃ÷µ¥¸öÏß³Ì×éÄÚµÄ"¹²ÏíÄÚ´æ",¹²ÏíÄÚ´æº¬ÓĞn+2r¸öÔªËØ
 
 /*======================================================
-*è®¡ç®—æ¨¡ç³ŠåŠå¾„æœ€å¤šä¸º5ä¸ªåƒç´ çš„å¯åˆ†ç¦»é«˜æ–¯æ¨¡ç³Š;å¦‚ä¸‹,åˆ‡åˆ†ä¸ºæ¨ªå‘æ¨¡ç³Šå’Œçºµå‘æ¨¡ç³Š
+*¼ÆËãÄ£ºı°ë¾¶×î¶àÎª5¸öÏñËØµÄ¿É·ÖÀë¸ßË¹Ä£ºı;ÈçÏÂ,ÇĞ·ÖÎªºáÏòÄ£ºıºÍ×İÏòÄ£ºı
 *=======================================================
 */
 
-/// æ¨ªå‘æ¨¡ç³Šè®¡ç®—ç€è‰²å™¨ HorzBlurCS
+/// ºáÏòÄ£ºı¼ÆËã×ÅÉ«Æ÷ HorzBlurCS
 [numthreads(N, 1, 1)]
-void HorzBlurCS(int3 groupThreadID	  : SV_GroupThreadID,  // ç»„å†…çº¿ç¨‹ID 
-				int3 dispatchThreadID : SV_DispatchThreadID// è°ƒåº¦çº¿ç¨‹ID
+void HorzBlurCS(int3 groupThreadID	  : SV_GroupThreadID,  // ×éÄÚÏß³ÌID 
+				int3 dispatchThreadID : SV_DispatchThreadID// µ÷¶ÈÏß³ÌID
 )
 {
-	// æ¨¡ç³Šæƒå€¼æ•°ç»„; 11ä¸ªæ¨¡ç³Šæƒå€¼æ”¾åœ¨æ•°ç»„ä¸­ä¾¿äºç´¢å¼•
+	// Ä£ºıÈ¨ÖµÊı×é; 11¸öÄ£ºıÈ¨Öµ·ÅÔÚÊı×éÖĞ±ãÓÚË÷Òı
 	float weights[11] = { w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10 };
 
 	//
-	// é€šè¿‡å¡«å†™æœ¬åœ°çº¿ç¨‹å­˜å‚¨åŒº(shared memory)æ¥å‡å°‘å¸¦å®½çš„è´Ÿè½½
-	//è‹¥è¦å¯¹Nä¸ªåƒç´ æ‰§è¡Œæ¨¡ç³Šå¤„ç†,ä¾æ®æ¨¡ç³ŠåŠå¾„R,æˆ‘ä»¬éœ€è¦åŠ è½½N+2Rä¸ªåƒç´ 
+	// Í¨¹ıÌîĞ´±¾µØÏß³Ì´æ´¢Çø(shared memory)À´¼õÉÙ´ø¿íµÄ¸ºÔØ
+	//ÈôÒª¶ÔN¸öÏñËØÖ´ĞĞÄ£ºı´¦Àí,ÒÀ¾İÄ£ºı°ë¾¶R,ÎÒÃÇĞèÒª¼ÓÔØN+2R¸öÏñËØ
 	
-	// æ­¤çº¿ç¨‹ç»„è¿è¡Œç€Nä¸ªçº¿ç¨‹,ä¸ºäº†è·å–é¢å¤–çš„2Rä¸ªåƒç´ ,éœ€è¦æœ‰2Rä¸ªçº¿ç¨‹å†é¢å¤–å¤šé‡‡é›†1ä¸ªåƒç´ æ•°æ®
-	if(groupThreadID.x < gBlurRadius)// ç»„å†…çº¿ç¨‹IDæ¨ªå‘æ£€æŸ¥,ä¸cbufferé‡Œçš„æ¨¡ç³ŠåŠå¾„ä½œæ¯”è¾ƒ
+	// ´ËÏß³Ì×éÔËĞĞ×ÅN¸öÏß³Ì,ÎªÁË»ñÈ¡¶îÍâµÄ2R¸öÏñËØ,ĞèÒªÓĞ2R¸öÏß³ÌÔÙ¶îÍâ¶à²É¼¯1¸öÏñËØÊı¾İ
+	if(groupThreadID.x < gBlurRadius)// ×éÄÚÏß³ÌIDºáÏò¼ì²é,ÓëcbufferÀïµÄÄ£ºı°ë¾¶×÷±È½Ï
 	{
-		// å¯¹å›¾åƒè¾¹ç•Œå·¦ä¾§å­˜åœ¨è¶Šç•Œé‡‡æ ·çš„æƒ…å†µè¿›è¡Œä¿æŠ¤æªæ–½:clampæ“ä½œ
+		// ¶ÔÍ¼Ïñ±ß½ç×ó²à´æÔÚÔ½½ç²ÉÑùµÄÇé¿ö½øĞĞ±£»¤´ëÊ©:clamp²Ù×÷
 		int x = max(dispatchThreadID.x - gBlurRadius, 0);
-		gCache[groupThreadID.x] = gInput[int2(x, dispatchThreadID.y)];// è®©æ¯ä¸ªçº¿ç¨‹éƒ½å»é‡‡é›†çº¹ç†,å¹¶æŠŠé‡‡é›†ç»“æœå­˜åˆ°å…±äº«å†…å­˜é‡Œ
+		gCache[groupThreadID.x] = gInput[int2(x, dispatchThreadID.y)];// ÈÃÃ¿¸öÏß³Ì¶¼È¥²É¼¯ÎÆÀí,²¢°Ñ²É¼¯½á¹û´æµ½¹²ÏíÄÚ´æÀï
 	}
 	if(groupThreadID.x >= N - gBlurRadius)
 	{
-		// å¯¹å›¾åƒè¾¹ç•Œå³ä¾§å­˜åœ¨è¶Šç•Œé‡‡æ ·çš„æƒ…å†µè¿›è¡Œä¿æŠ¤æªæ–½:clampæ“ä½œ
+		// ¶ÔÍ¼Ïñ±ß½çÓÒ²à´æÔÚÔ½½ç²ÉÑùµÄÇé¿ö½øĞĞ±£»¤´ëÊ©:clamp²Ù×÷
 		int x = min(dispatchThreadID.x + gBlurRadius, gInput.Length.x-1);
 		gCache[groupThreadID.x + 2*gBlurRadius] = gInput[int2(x, dispatchThreadID.y)];
 	}
 
-	// é’ˆå¯¹å›¾åƒè¾¹ç•Œå¤„çš„è¶Šç•Œé‡‡ç”¨æ‰§è¡Œé’³ä½å¤„ç†
+	// Õë¶ÔÍ¼Ïñ±ß½ç´¦µÄÔ½½ç²ÉÓÃÖ´ĞĞÇ¯Î»´¦Àí
 	gCache[groupThreadID.x+gBlurRadius] = gInput[min(dispatchThreadID.xy, gInput.Length.xy-1)];
 
-	// åˆ©ç”¨ç³»ç»ŸAPIå¼ºåˆ¶å‘½ä»¤ç»„å†…å…¶ä»–çº¿ç¨‹å„è‡ªå®Œæˆå„è‡ªçš„ä»»åŠ¡;ç›®çš„æ˜¯é¿å…å…¶ä»–çº¿ç¨‹è®¿é—®åˆ°è¿˜æ²¡æœ‰åˆå§‹åŒ–çš„å…±äº«å†…å­˜å…ƒç´ ä»è€Œé€ æˆ"ä¸å®‰å…¨"
-	GroupMemoryBarrierWithGroupSync();// 1ä¸ªåŒæ­¥å‘½ä»¤
+	// ÀûÓÃÏµÍ³APIÇ¿ÖÆÃüÁî×éÄÚÆäËûÏß³Ì¸÷×ÔÍê³É¸÷×ÔµÄÈÎÎñ;Ä¿µÄÊÇ±ÜÃâÆäËûÏß³Ì·ÃÎÊµ½»¹Ã»ÓĞ³õÊ¼»¯µÄ¹²ÏíÄÚ´æÔªËØ´Ó¶øÔì³É"²»°²È«"
+	GroupMemoryBarrierWithGroupSync();// 1¸öÍ¬²½ÃüÁî
 	
 	//
-	// ç°åœ¨æ¨¡ç³Šå¤„ç†æ¯ä¸ªåƒç´ 
+	// ÏÖÔÚÄ£ºı´¦ÀíÃ¿¸öÏñËØ
 	//
 
-	float4 blurColor = float4(0, 0, 0, 0);// è®¾å®šä¸€ä¸ªæ¨¡ç³Šé¢œè‰²
+	float4 blurColor = float4(0, 0, 0, 0);// Éè¶¨Ò»¸öÄ£ºıÑÕÉ«
 	
 	for(int i = -gBlurRadius; i <= gBlurRadius; ++i)
 	{
-		int k = groupThreadID.x + gBlurRadius + i;// æš‚å­˜ç»„å†…çº¿ç¨‹ID+å½“å‰æ¨¡ç³ŠåŠå¾„+içš„è®¡æ•°
+		int k = groupThreadID.x + gBlurRadius + i;// Ôİ´æ×éÄÚÏß³ÌID+µ±Ç°Ä£ºı°ë¾¶+iµÄ¼ÆÊı
 		
-		blurColor += weights[i+gBlurRadius]*gCache[k];// æ›´æ–°æ¨¡ç³Šé¢œè‰²ä¸º æƒé‡æ•°ç»„*å…±äº«å†…å­˜é‡Œ
+		blurColor += weights[i+gBlurRadius]*gCache[k];// ¸üĞÂÄ£ºıÑÕÉ«Îª È¨ÖØÊı×é*¹²ÏíÄÚ´æÀï
 	}
 	
-	gOutput[dispatchThreadID.xy] = blurColor;// æœ€ç»ˆè¾“å‡ºçš„çº¹ç†æ›´æ–°ä¸ºè¿™ä¸ªæ¨¡ç³Šé¢œè‰²
+	gOutput[dispatchThreadID.xy] = blurColor;// ×îÖÕÊä³öµÄÎÆÀí¸üĞÂÎªÕâ¸öÄ£ºıÑÕÉ«
 }
 
 [numthreads(1, N, 1)]
@@ -103,18 +103,18 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID,
 	// have 2*BlurRadius threads sample an extra pixel.
 	if(groupThreadID.y < gBlurRadius)
 	{
-		// å¯¹äºå›¾åƒä¸Šä¾§è¾¹ç•Œè¶Šç•Œé‡‡æ ·æ‰§è¡Œé’³ä½å¤„ç†
+		// ¶ÔÓÚÍ¼ÏñÉÏ²à±ß½çÔ½½ç²ÉÑùÖ´ĞĞÇ¯Î»´¦Àí
 		int y = max(dispatchThreadID.y - gBlurRadius, 0);
 		gCache[groupThreadID.y] = gInput[int2(dispatchThreadID.x, y)];
 	}
 	if(groupThreadID.y >= N-gBlurRadius)
 	{
-		// å¯¹äºå›¾åƒä¸‹ä¾§è¾¹ç•Œè¶Šç•Œé‡‡æ ·æ‰§è¡Œé’³ä½å¤„ç†
+		// ¶ÔÓÚÍ¼ÏñÏÂ²à±ß½çÔ½½ç²ÉÑùÖ´ĞĞÇ¯Î»´¦Àí
 		int y = min(dispatchThreadID.y + gBlurRadius, gInput.Length.y-1);
 		gCache[groupThreadID.y+2*gBlurRadius] = gInput[int2(dispatchThreadID.x, y)];
 	}
 	
-	// // å¯¹äºå›¾åƒè¾¹ç•Œè¶Šç•Œé‡‡æ ·æ‰§è¡Œé’³ä½å¤„ç†
+	// // ¶ÔÓÚÍ¼Ïñ±ß½çÔ½½ç²ÉÑùÖ´ĞĞÇ¯Î»´¦Àí
 	gCache[groupThreadID.y+gBlurRadius] = gInput[min(dispatchThreadID.xy, gInput.Length.xy-1)];
 
 
