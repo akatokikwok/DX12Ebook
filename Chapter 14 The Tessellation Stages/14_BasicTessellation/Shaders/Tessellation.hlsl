@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // Tessellation.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -81,15 +81,20 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
  
-struct PatchTess
+struct PatchTess// 面片(patch)的细节
 {
     float EdgeTess[4] : SV_TessFactor;
     float InsideTess[2] : SV_InsideTessFactor;
+    
+    // 允许再给每个面片附加所需的额外信息
 };
 
-PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_PrimitiveID)
+// 常量hull shader必须输出 tesselation factor
+PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, /*常量hull shader以面片所有的控制点为输入*/
+                     uint patchID : SV_PrimitiveID   /*面片ID值*/
+)
 {
-    PatchTess pt;
+    PatchTess pt;// 声明1个patch
 	
     float3 centerL = 0.25f * (patch[0].PosL + patch[1].PosL + patch[2].PosL + patch[3].PosL);
     float3 centerW = mul(float4(centerL, 1.0f), gWorld).xyz;
@@ -104,16 +109,15 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_Primitive
     const float d1 = 100.0f;
     float tess = 64.0f * saturate((d1 - d) / (d1 - d0));
 
-	// Uniformly tessellate the patch.
+	// 将该patch从各方面均匀地镶嵌为三等分
 
-    pt.EdgeTess[0] = tess;
-    pt.EdgeTess[1] = tess;
-    pt.EdgeTess[2] = tess;
-    pt.EdgeTess[3] = tess;
+    pt.EdgeTess[0] = tess;// 四边形面片的左侧边缘
+    pt.EdgeTess[1] = tess;// 上侧边缘
+    pt.EdgeTess[2] = tess;// 右侧边缘
+    pt.EdgeTess[3] = tess;// 下侧边缘
 	
-    pt.InsideTess[0] = tess;
-    pt.InsideTess[1] = tess;
-	
+    pt.InsideTess[0] = tess;// u轴(四边形patch内部细分的列)
+    pt.InsideTess[1] = tess;// v轴(四边形patch内部细分的行)
     return pt;
 }
 
@@ -122,15 +126,17 @@ struct HullOut
     float3 PosL : POSITION;
 };
 
-[domain("quad")]
-[partitioning("integer")]
-[outputtopology("triangle_cw")]
-[outputcontrolpoints(4)]
-[patchconstantfunc("ConstantHS")]
-[maxtessfactor(64.0f)]
-HullOut HS(InputPatch<VertexOut, 4> p,
-           uint i : SV_OutputControlPointID,
-           uint patchId : SV_PrimitiveID)
+// 这是一个控制点外壳着色器,此例中仅充当简单的传递着色器,不修改任何控制点
+[domain("quad")]/*面片的类型,可选用关键字有 tri、quad、isoline*/
+[partitioning("integer")]/*指定曲面细分的细分模式, 有interger、fractional_even*/
+[outputtopology("triangle_cw")]/*细分所创建的三角形绕序*/
+[outputcontrolpoints(4)]/*hull shader执行的次数*/
+[patchconstantfunc("ConstantHS")]/*指定常量外壳着色器的函数名字字段*/
+[maxtessfactor(64.0f)]/*通知给驱动的使用的曲面细分因子的最大值*/
+HullOut HS(InputPatch<VertexOut, 4> p,/*通过inputPatch关键字可以把patch所有的控制点都传递到hull shader之中*/
+           uint i : SV_OutputControlPointID, /*系统值SV_OutputControlPointID索引那些正在被hull shader当前正在工作的输出control point*/
+           uint patchId : SV_PrimitiveID /*面片ID值*/
+)
 {
     HullOut hout;
 	
