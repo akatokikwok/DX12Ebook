@@ -188,11 +188,15 @@ bool BasicTessellationApp::Initialize()
 	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	LoadTextures();
+
 	BuildRootSignature();
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
+
 	BuildQuadPatchGeometry();
+
 	BuildMaterials();
+	
 	BuildRenderItems();
 	BuildFrameResources();
 	BuildPSOs();
@@ -589,6 +593,7 @@ void BasicTessellationApp::BuildShadersAndInputLayout()
 	};
 }
 
+/// 创建具有4个控制点的VS
 void BasicTessellationApp::BuildQuadPatchGeometry()
 {
 	std::array<XMFLOAT3, 4> vertices =
@@ -603,19 +608,21 @@ void BasicTessellationApp::BuildQuadPatchGeometry()
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-
+	// 构建1个集合管理员Geo,并取名叫"quadpatchGeo"
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "quadpatchGeo";
 
+	// 为cpu端的几何管理员geo 索引缓存开辟顶点Blob内存 
+	// 把quad patch数据源(索引集) 拷贝到 管理员geo 的cpu端去
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
 	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
 	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
+	// 利用助手方法d3dUtil::CreateDefaultBuffer,结合quad patch数据源(顶点集\索引集)和中介Uploader
+	// 分别创建出GPU端顶点缓存,索引缓存(实际上就是给geo的这边GPU端做值)
 	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
 		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
 	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
 		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
 
@@ -630,7 +637,7 @@ void BasicTessellationApp::BuildQuadPatchGeometry()
 	quadSubmesh.BaseVertexLocation = 0;
 
 	geo->DrawArgs["quadpatch"] = quadSubmesh;
-
+	// 最后全局几何体表注册一下 quadpatch geo的所有信息
 	mGeometries[geo->Name] = std::move(geo);
 }
 
@@ -699,20 +706,22 @@ void BasicTessellationApp::BuildMaterials()
 	mMaterials["whiteMat"] = std::move(whiteMat);
 }
 
+/// 构建四边形面片的渲染项
 void BasicTessellationApp::BuildRenderItems()
 {
 	auto quadPatchRitem = std::make_unique<RenderItem>();
-	quadPatchRitem->World = MathHelper::Identity4x4();
-	quadPatchRitem->TexTransform = MathHelper::Identity4x4();
+	quadPatchRitem->World = MathHelper::Identity4x4();// 设定quad patch的世界矩阵为单位矩阵
+	quadPatchRitem->TexTransform = MathHelper::Identity4x4();// 设定 纹理变换矩阵也为默认单位矩阵
 	quadPatchRitem->ObjCBIndex = 0;
-	quadPatchRitem->Mat = mMaterials["whiteMat"].get();
+	quadPatchRitem->Mat = mMaterials["whiteMat"].get();// 设定 波浪的材质是全局材质表里的 白色面片材质
 	quadPatchRitem->Geo = mGeometries["quadpatchGeo"].get();
 	quadPatchRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
 	quadPatchRitem->IndexCount = quadPatchRitem->Geo->DrawArgs["quadpatch"].IndexCount;
 	quadPatchRitem->StartIndexLocation = quadPatchRitem->Geo->DrawArgs["quadpatch"].StartIndexLocation;
 	quadPatchRitem->BaseVertexLocation = quadPatchRitem->Geo->DrawArgs["quadpatch"].BaseVertexLocation;
+	// 渲染项层级里注册字段 "四边形面片的渲染项"
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(quadPatchRitem.get());
-
+	// 注册一下全局渲染项数组
 	mAllRitems.push_back(std::move(quadPatchRitem));
 }
 

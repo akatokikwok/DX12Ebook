@@ -83,8 +83,8 @@ VertexOut VS(VertexIn vin)
  
 struct PatchTess// 面片(patch)的细节
 {
-    float EdgeTess[4] : SV_TessFactor;
-    float InsideTess[2] : SV_InsideTessFactor;
+    float EdgeTess[4]   : SV_TessFactor;      // quad patch的边缘,4个控制点
+    float InsideTess[2] : SV_InsideTessFactor;// quad patch的内侧,2个控制点
     
     // 允许再给每个面片附加所需的额外信息
 };
@@ -99,17 +99,17 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, /*常量hull shader以面�
     float3 centerL = 0.25f * (patch[0].PosL + patch[1].PosL + patch[2].PosL + patch[3].PosL);
     float3 centerW = mul(float4(centerL, 1.0f), gWorld).xyz;
 	
-    float d = distance(centerW, gEyePosW);
+    float d = distance(centerW, gEyePosW);// 网格到观察点的距离
 
-	// Tessellate the patch based on distance from the eye such that
-	// the tessellation is 0 if d >= d1 and 64 if d <= d0.  The interval
-	// [d0, d1] defines the range we tessellate in.
+    // 根据网格与观察点的距离来对面片执行镶嵌处理,如若d>=dl(执行镶嵌的最远距离),则镶嵌份数降为0;
+    // 如若d<=d0(执行镶嵌的最近距离),则镶嵌份数升为64;
+    // [d0, dl]定义了执行镶嵌操作的一个距离区间
 	
     const float d0 = 20.0f;
     const float d1 = 100.0f;
     float tess = 64.0f * saturate((d1 - d) / (d1 - d0));
 
-	// 将该patch从各方面均匀地镶嵌为三等分
+	// 对四边形面片的各方面(边缘,内部)进行统一的镶嵌化处理
 
     pt.EdgeTess[0] = tess;// 四边形面片的左侧边缘
     pt.EdgeTess[1] = tess;// 上侧边缘
@@ -145,30 +145,37 @@ HullOut HS(InputPatch<VertexOut, 4> p,/*通过inputPatch关键字可以把patch�
     return hout;
 }
 
-struct DomainOut
+/// 经过简单镶嵌,细分的三角形仅仅是列于细分的patch之上,细节依然不够丰富;
+/// 因此,要以某种方式移动这些新增的点, 新增的三角形; 那么这些操作就都是在域着色器执行的
+
+struct DomainOut// 域着色器输出值
 {
     float4 PosH : SV_POSITION;
 };
 
-// The domain shader is called for every vertex created by the tessellator.  
-// It is like the vertex shader after tessellation.
+// 借助双线性插值实现DS
+// 每当镶嵌器过程(tesselator)创建顶点的时候就会调用域着色器
+// 可以将其视为镶嵌阶段处理之后的"vertex shader"
 [domain("quad")]
-DomainOut DS(PatchTess patchTess,
-             float2 uv : SV_DomainLocation,
-             const OutputPatch<HullOut, 4> quad)
+DomainOut DS(PatchTess patchTess,/*有一个面片*/
+             float2 uv : SV_DomainLocation, /*域着色器给出的不是实际顶点位置,而是位于patch domain space内的参数坐标(u,v)*/
+             const OutputPatch<HullOut, 4> quad/*入参是控制点外壳着色器的控制点输出值*/
+)
 {
     DomainOut dout;
 	
-	// Bilinear interpolation.
+	// 双线性插值处理得到一个新增的点 p
     float3 v1 = lerp(quad[0].PosL, quad[1].PosL, uv.x);
     float3 v2 = lerp(quad[2].PosL, quad[3].PosL, uv.x);
     float3 p = lerp(v1, v2, uv.y);
 	
-	// Displacement mapping
+    /// 经过简单镶嵌,细分的三角形仅仅是列于细分的patch之上,细节依然不够丰富;
+    /// 因此,要以某种方式移动这些新增的点, 新增的三角形; 那么这些操作就都是在域着色器执行的
+	// 位移贴图, 即模拟函数在y轴上对诸顶点执行偏移
     p.y = 0.3f * (p.z * sin(p.x) + p.x * cos(p.z));
 	
-    float4 posW = mul(float4(p, 1.0f), gWorld);
-    dout.PosH = mul(posW, gViewProj);
+    float4 posW = mul(float4(p, 1.0f), gWorld);// 把点p变换到世界空间
+    dout.PosH = mul(posW, gViewProj);//变换到齐次裁剪空间
 	
     return dout;
 }
