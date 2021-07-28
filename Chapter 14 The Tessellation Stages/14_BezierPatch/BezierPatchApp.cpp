@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // BezierPatchApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -191,7 +191,7 @@ bool BezierPatchApp::Initialize()
 	BuildRootSignature();
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
-	BuildQuadPatchGeometry();
+	BuildQuadPatchGeometry();// 创建16个控制点
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -589,6 +589,7 @@ void BezierPatchApp::BuildShadersAndInputLayout()
 	};
 }
 
+/// 创建三阶贝塞尔曲面的16个控制点
 void BezierPatchApp::BuildQuadPatchGeometry()
 {
 	std::array<XMFLOAT3, 16> vertices =
@@ -724,6 +725,7 @@ void BezierPatchApp::BuildMaterials()
 	mMaterials["whiteMat"] = std::move(whiteMat);
 }
 
+// 构建quad patch渲染项
 void BezierPatchApp::BuildRenderItems()
 {
 	auto quadPatchRitem = std::make_unique<RenderItem>();

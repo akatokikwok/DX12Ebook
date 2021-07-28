@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // BezierTessellation.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //
 // Demonstrates hardware tessellating a Bezier patch.
@@ -130,21 +130,30 @@ HullOut HS(InputPatch<VertexOut, 16> p,
     return hout;
 }
 
+// 具有3个控制点的二阶贝塞尔曲线的参数方程是通过连续插值而得到的:
+// p(t)=(1-t)²p0+2(1-t)tp1+t² p2
+// 同理:具有4个控制点的三阶贝塞尔曲线也可以使用这个重复插值法:p(t)=(1-t)³p0+3t(1-t)²p1+3t²(1-t)p2+t³ p3
+
+// n阶贝塞尔曲线使用"伯恩斯坦基函数"表示,详见508;
+// 对三次贝塞尔曲线求导可以得到1个导数,利用导数来计算3阶贝塞尔曲线上某一点的切向量
+
 struct DomainOut
 {
     float4 PosH : SV_POSITION;
 };
 
+// 三阶贝塞尔曲面求和公式详见P510
 float4 BernsteinBasis(float t)
 {
     float invT = 1.0f - t;
-
+    // 具有4个控制点的三阶贝塞尔曲线也可以使用这个重复插值法:p(t)=(1-t)³p0+3t(1-t)²p1+3t²(1-t)p2+t³p3
     return float4(invT * invT * invT,
                    3.0f * t * invT * invT,
                    3.0f * t * t * invT,
                    t * t * t);
 }
 
+// 
 float3 CubicBezierSum(const OutputPatch<HullOut, 16> bezpatch, float4 basisU, float4 basisV)
 {
     float3 sum = float3(0.0f, 0.0f, 0.0f);
@@ -156,6 +165,7 @@ float3 CubicBezierSum(const OutputPatch<HullOut, 16> bezpatch, float4 basisU, fl
     return sum;
 }
 
+// 求函数p(u,v)即三阶贝塞尔曲面 的偏导数;详见P511
 float4 dBernsteinBasis(float t)
 {
     float invT = 1.0f - t;
@@ -171,13 +181,14 @@ float4 dBernsteinBasis(float t)
 [domain("quad")]
 DomainOut DS(PatchTess patchTess,
              float2 uv : SV_DomainLocation,
-             const OutputPatch<HullOut, 16> bezPatch)
+             const OutputPatch<HullOut, 16> bezPatch 
+)
 {
     DomainOut dout;
 	
     float4 basisU = BernsteinBasis(uv.x);
     float4 basisV = BernsteinBasis(uv.y);
-
+    // 三次贝塞尔曲面p(u,v)
     float3 p = CubicBezierSum(bezPatch, basisU, basisV);
 	
     float4 posW = mul(float4(p, 1.0f), gWorld);
