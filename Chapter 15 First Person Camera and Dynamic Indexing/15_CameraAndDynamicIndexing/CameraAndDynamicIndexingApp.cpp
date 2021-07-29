@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // CameraAndDynamicIndexingApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -196,7 +196,7 @@ bool CameraAndDynamicIndexingApp::Initialize()
 void CameraAndDynamicIndexingApp::OnResize()
 {
     D3DApp::OnResize();
-
+	// 当窗口大小改变的时候不再需要之前那些字段了,而是改用摄像机类的SetLens接口
 	mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 }
 
@@ -258,16 +258,14 @@ void CameraAndDynamicIndexingApp::Draw(const GameTimer& gt)
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
-	// Bind all the materials used in this scene.  For structured buffers, we can bypass the heap and 
-	// set as a root descriptor.
+	// 绑定场景里所需要的全部材质,对于结构化buffer而言,此处可以绕开视图堆而直接设置为 root desciptor
 	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
-	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());// 材质设成根签名里的2号
 
-	// Bind all the textures used in this scene.  Observe
-    // that we only have to specify the first descriptor in the table.  
-    // The root signature knows how many descriptors are expected in the table.
-	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	// 绑定场景里所需要的全部纹理,;此处可以发现,仅需要指定textable中的第一个描述符,而根签名它会自行推断table里到底含有多少个视图
+	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());// 纹理设成根签名的3号
 
+	// 渲染项里仅需要设置对应的物体CB,不需要再设置材质和纹理
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
     // Indicate a state transition on the resource usage.
@@ -339,7 +337,7 @@ void CameraAndDynamicIndexingApp::OnKeyboardInput(const GameTimer& gt)
 	if(GetAsyncKeyState('D') & 0x8000)
 		mCamera.Strafe(10.0f*dt);
 
-	mCamera.UpdateViewMatrix();
+	mCamera.UpdateViewMatrix();// 更改了摄像机相关信息后,调用此函数重构观察矩阵
 }
  
 void CameraAndDynamicIndexingApp::AnimateMaterials(const GameTimer& gt)
@@ -362,7 +360,7 @@ void CameraAndDynamicIndexingApp::UpdateObjectCBs(const GameTimer& gt)
 			ObjectConstants objConstants;
 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-			objConstants.MaterialIndex = e->Mat->MatCBIndex;
+			objConstants.MaterialIndex = e->Mat->MatCBIndex;// 物体常量里的材质索引字段也得更新, 由渲染项里的材质索引跟它对齐
 
 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
@@ -389,7 +387,7 @@ void CameraAndDynamicIndexingApp::UpdateMaterialBuffer(const GameTimer& gt)
 			matData.FresnelR0 = mat->FresnelR0;
 			matData.Roughness = mat->Roughness;
 			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
-			matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+			matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;/// 也是新增的一行,材质结构体buffer里的贴图也要更新
 
 			currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
 
@@ -473,17 +471,14 @@ void CameraAndDynamicIndexingApp::LoadTextures()
 void CameraAndDynamicIndexingApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0, 0);
-
-    // Root parameter can be a table, root descriptor or root constants.
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0, 0);// 这张纹理初始化为SRV型
+	
+	// 按变更频率由高至低排列(依次是物体常量, 渲染过程常量, 材质用SRV, 纹理)
     CD3DX12_ROOT_PARAMETER slotRootParameter[4];
-
-	// Perfomance TIP: Order from most frequent to least frequent.
-    slotRootParameter[0].InitAsConstantBufferView(0);
-    slotRootParameter[1].InitAsConstantBufferView(1);
-    slotRootParameter[2].InitAsShaderResourceView(0, 1);
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-
+    slotRootParameter[0].InitAsConstantBufferView(0);   // objectCB
+    slotRootParameter[1].InitAsConstantBufferView(1);	// passcb
+    slotRootParameter[2].InitAsShaderResourceView(0, 1);// Mat SRV
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);// texture
 
 	auto staticSamplers = GetStaticSamplers();
 
@@ -882,8 +877,9 @@ void CameraAndDynamicIndexingApp::BuildRenderItems()
 
 void CameraAndDynamicIndexingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
+	// 物体CB 255字节对齐, 单字节大小
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
- 
+	// 暂存"当前帧资源下"物体CB 的D3D12Resouce指针
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
 
     // For each render item...
@@ -897,10 +893,11 @@ void CameraAndDynamicIndexingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmd
 
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
 
+		// 以下原先存在的关于纹理的则不需要了
 		// CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		// tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
 
-		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);// 管线上绑定物体CB, 0号
 
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../../Common/d3dUtil.h"
 #include "../../Common/MathHelper.h"
@@ -8,7 +8,7 @@ struct ObjectConstants
 {
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-	UINT     MaterialIndex;
+	UINT     MaterialIndex;/// 物体CB里新增的MaterialIndex字段,用以来专门制定本次绘制所使用的材质索引
 	UINT     ObjPad0;
 	UINT     ObjPad1;
 	UINT     ObjPad2;
@@ -40,17 +40,19 @@ struct PassConstants
     Light Lights[MaxLights];
 };
 
+// 新增的存有材质的结构化buffer,即以结构化buffer取代CBuffer来存储材质
 struct MaterialData
 {
-	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
-	float Roughness = 64.0f;
+    // 用于shader着色的 "材质常量缓存数据"
+	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };// 漫反射率及颜色
+	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };// 菲涅尔系数(就是施利克公式里的RF(0°))(和粗糙度一起用于控制镜面光)
+	float Roughness = 64.0f;// 粗糙度(和菲涅尔系数一起用于控制镜面光),越大越粗糙
 
-	// Used in texture mapping.
-	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();/// 用于纹理贴图,结构化材质buffer里的 "纹理变换矩阵"
 
-	UINT DiffuseMapIndex = 0;
-	UINT MaterialPad0;
+	UINT DiffuseMapIndex = 0;/// 向结构化材质结构体里添加DiffuseMapIndex字段,专门确定与材质关联的那个纹理图,方便对纹理数组执行索引
+	
+    UINT MaterialPad0;
 	UINT MaterialPad1;
 	UINT MaterialPad2;
 };
@@ -64,6 +66,7 @@ struct Vertex
 
 // Stores the resources needed for the CPU to build the command lists
 // for a frame.  
+/// FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount);
 struct FrameResource
 {
 public:

@@ -7,7 +7,7 @@ FrameResource::FrameResource(ID3D12Device* device, UINT passCount, UINT objectCo
 		IID_PPV_ARGS(CmdListAlloc.GetAddressOf())));
 
     PassCB = std::make_unique<UploadBuffer<PassConstants>>(device, passCount, true);
-	MaterialBuffer = std::make_unique<UploadBuffer<MaterialData>>(device, materialCount, false);
+	MaterialBuffer = std::make_unique<UploadBuffer<MaterialData>>(device, materialCount, false);// 由于需要动态的更新材质,因此要使用upload buffer而非默认缓存区
     ObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(device, objectCount, true);
 }
 
