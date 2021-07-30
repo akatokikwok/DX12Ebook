@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // Camera.h by Frank Luna (C) 2011 All Rights Reserved.
 //***************************************************************************************
 
@@ -89,6 +89,7 @@ float Camera::GetFovY()const
 
 float Camera::GetFovX()const
 {
+	// 一旦知晓垂直视场角a和宽高比r;就必定可以推导出水平视场角 B==2 * arctan( w/h * tan(a/2) )
 	float halfWidth = 0.5f*GetNearWindowWidth();
 	return 2.0f*atan(halfWidth / mNearZ);
 }
@@ -113,6 +114,7 @@ float Camera::GetFarWindowHeight()const
 	return mFarWindowHeight;
 }
 
+/// 缓存视锥体属性和构建投影矩阵的时候就需要用到此方法
 void Camera::SetLens(float fovY, float aspect, float zn, float zf)
 {
 	// cache properties
@@ -182,7 +184,7 @@ void Camera::Strafe(float d)
 	XMVECTOR s = XMVectorReplicate(d);
 	XMVECTOR r = XMLoadFloat3(&mRight);
 	XMVECTOR p = XMLoadFloat3(&mPosition);
-	XMStoreFloat3(&mPosition, XMVectorMultiplyAdd(s, r, p));
+	XMStoreFloat3(&mPosition, XMVectorMultiplyAdd(s, r, p));// 计算前两个向量与第三个向量相加的乘积。
 
 	mViewDirty = true;
 }
@@ -223,6 +225,7 @@ void Camera::RotateY(float angle)
 	mViewDirty = true;
 }
 
+/// 构建观察矩阵
 void Camera::UpdateViewMatrix()
 {
 	if(mViewDirty)
@@ -232,14 +235,14 @@ void Camera::UpdateViewMatrix()
 		XMVECTOR L = XMLoadFloat3(&mLook);
 		XMVECTOR P = XMLoadFloat3(&mPosition);
 
-		// Keep camera's axes orthogonal to each other and of unit length.
-		L = XMVector3Normalize(L);
+		// 让摄像机的坐标向量彼此互相正交且保持单位长度
+		L = XMVector3Normalize(L);// 把观察方向规范化
 		U = XMVector3Normalize(XMVector3Cross(L, R));
 
-		// U, L already ortho-normal, so no need to normalize cross product.
+		// UL已经互为正交规范化向量,现在不需要对下列叉积再执行规范化
 		R = XMVector3Cross(U, L);
 
-		// Fill in the view matrix entries.
+		// 填写观察矩阵里的元素
 		float x = -XMVectorGetX(XMVector3Dot(P, R));
 		float y = -XMVectorGetX(XMVector3Dot(P, U));
 		float z = -XMVectorGetX(XMVector3Dot(P, L));
