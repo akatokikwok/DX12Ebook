@@ -962,7 +962,7 @@ void InstancingAndCullingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList
 		auto instanceBuffer = mCurrFrameResource->InstanceBuffer->Resource();
 		mCommandList->SetGraphicsRootShaderResourceView(0, instanceBuffer->GetGPUVirtualAddress());
 
-        cmdList->DrawIndexedInstanced(ri->IndexCount, ri->InstanceCount, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+        cmdList->DrawIndexedInstanced(ri->IndexCount, ri->InstanceCount/*此处不再是原先的1,而是设计为实例的数量*/, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
 }
 
