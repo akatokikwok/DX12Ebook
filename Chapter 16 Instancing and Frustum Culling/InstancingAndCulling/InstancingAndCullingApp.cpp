@@ -48,7 +48,7 @@ struct RenderItem
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
 	BoundingBox Bounds;
-	std::vector<InstanceData> Instances;
+	std::vector<InstanceData> Instances;// 渲染项里持有实例化次数
 
     // DrawIndexedInstanced parameters.
     UINT IndexCount = 0;
@@ -262,22 +262,21 @@ void InstancingAndCullingApp::Draw(const GameTimer& gt)
     // Specify the buffers we are going to render to.
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
+	// 用SRV视图堆构建1个堆数组, 把视图堆数组绑定到管线上
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
+	// 管线上绑定根签名
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-
-	// Bind all the materials used in this scene.  For structured buffers, we can bypass the heap and 
-	// set as a root descriptor.
+	// 绑定此场景所需的全部材质,对于结构化材质而言,可以跳过描述符HEAP而将其直接设置到1个 root descriptor.
 	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
-	mCommandList->SetGraphicsRootShaderResourceView(1, matBuffer->GetGPUVirtualAddress());
-
+	mCommandList->SetGraphicsRootShaderResourceView(1, matBuffer->GetGPUVirtualAddress());// 材质结构化buffer在管线上绑定到1号
+	// PASSCB在管线上绑定到2号
 	auto passCB = mCurrFrameResource->PassCB->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
-
-	// Bind all the textures used in this scene.
-	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-
+	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());// PASSCB在管线上绑定到2号
+	// 场景里所有使用的纹理贴图 绑定到3号
+	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());// 场景里所有使用的纹理贴图 绑定到3号
+	// 注意,本工程里,只分配了仅1个渲染项,所以仅用了1个实例buffer
+	// 假如想让实例拥有多个渲染项,则需要为每个渲染项都添加一个结构化buffer,并为其分配出足够大的空间容纳最大数量的实例
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
     // Indicate a state transition on the resource usage.
@@ -537,17 +536,15 @@ void InstancingAndCullingApp::LoadTextures()
 
 void InstancingAndCullingApp::BuildRootSignature()
 {
+	// 在HLSL里,有带7个元素的纹理数组,
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7, 0, 0);
-
-    // Root parameter can be a table, root descriptor or root constants.
+	// 根参数各个成员初始化, 按变更频率从高到低排序
     CD3DX12_ROOT_PARAMETER slotRootParameter[4];
-
-	// Perfomance TIP: Order from most frequent to least frequent.
-    slotRootParameter[0].InitAsShaderResourceView(0, 1);
-    slotRootParameter[1].InitAsShaderResourceView(1, 1);
-    slotRootParameter[2].InitAsConstantBufferView(0);
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+    slotRootParameter[0].InitAsShaderResourceView(0, 1); // 管线上绑定的0号是 实例的结构化buffer
+    slotRootParameter[1].InitAsShaderResourceView(1, 1);// 管线上绑定的1号是 材质的结构化buffer
+    slotRootParameter[2].InitAsConstantBufferView(0);// 管线上绑定的2号是 PASSCB
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);// 管线上绑定的3号是持有7个元素的纹理数组
 
 	auto staticSamplers = GetStaticSamplers();
 
@@ -577,20 +574,17 @@ void InstancingAndCullingApp::BuildRootSignature()
 
 void InstancingAndCullingApp::BuildDescriptorHeaps()
 {
-	//
-	// Create the SRV heap.
-	//
+	/// 填充SRV VIEW HEAP描述,并创建出持有7个视图的SRV HEAP,用来存7张纹理的纹理数组
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
 	srvHeapDesc.NumDescriptors = 7;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-	//
-	// Fill out the heap with actual descriptors.
-	//
+	/// 暂存SRV HEAP里的视图句柄,负责偏移用
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-
+	
+	/// 暂存所有纹理;从全局纹理表李取出所有的纹理,均是一份D3D12Resource
 	auto bricksTex = mTextures["bricksTex"]->Resource;
 	auto stoneTex = mTextures["stoneTex"]->Resource;
 	auto tileTex = mTextures["tileTex"]->Resource;
@@ -598,54 +592,49 @@ void InstancingAndCullingApp::BuildDescriptorHeaps()
 	auto iceTex = mTextures["iceTex"]->Resource;
 	auto grassTex = mTextures["grassTex"]->Resource;
 	auto defaultTex = mTextures["defaultTex"]->Resource;
-
+	
+	// 填充SRV视图的 描述并创建出bricksTex 纹理的SRV
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = bricksTex->GetDesc().Format;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.MipLevels = bricksTex->GetDesc().MipLevels;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;   // 采样时,返回的坐标上的向量
+	srvDesc.Format = bricksTex->GetDesc().Format;								  // 格式先指定为自身纹理
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;						  // 资源维数
+	srvDesc.Texture2D.MostDetailedMip = 0;										  // 最大的mipmap层级 0~MipLevels-1
+	srvDesc.Texture2D.MipLevels = bricksTex->GetDesc().MipLevels;				  // 若设为-1,则表示从MostDetailedMip到最后1个mipmap之间的所有mipmap
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, hDescriptor);
 
-	// next descriptor
+	// 偏移到下一个句柄, 创建出新纹理的SRV
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
 	srvDesc.Format = stoneTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = stoneTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(stoneTex.Get(), &srvDesc, hDescriptor);
 
-	// next descriptor
+	// 偏移到下一个句柄, 创建出新纹理的SRV
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
 	srvDesc.Format = tileTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = tileTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(tileTex.Get(), &srvDesc, hDescriptor);
 
-	// next descriptor
+	// 偏移到下一个句柄, 创建出新纹理的SRV
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
 	srvDesc.Format = crateTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = crateTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(crateTex.Get(), &srvDesc, hDescriptor);
 
-	// next descriptor
+	// 偏移到下一个句柄, 创建出新纹理的SRV
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
 	srvDesc.Format = iceTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = iceTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(iceTex.Get(), &srvDesc, hDescriptor);
 
-	// next descriptor
+	// 偏移到下一个句柄, 创建出新纹理的SRV
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
 	srvDesc.Format = grassTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = grassTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(grassTex.Get(), &srvDesc, hDescriptor);
 
-	// next descriptor
+	// 偏移到下一个句柄, 创建出新纹理的SRV
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
 	srvDesc.Format = defaultTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = defaultTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(defaultTex.Get(), &srvDesc, hDescriptor);
@@ -957,10 +946,9 @@ void InstancingAndCullingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList
         cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		// Set the instance buffer to use for this render-item.  For structured buffers, we can bypass 
-		// the heap and set as a root descriptor.
-		auto instanceBuffer = mCurrFrameResource->InstanceBuffer->Resource();
-		mCommandList->SetGraphicsRootShaderResourceView(0, instanceBuffer->GetGPUVirtualAddress());
+		// 对于每次的渲染项, 实例结构buffer可以绕过堆,直接在管线上设置为root desciptor
+		auto instanceBuffer = mCurrFrameResource->InstanceBuffer->Resource();// 当前帧里的实例结构体buffer
+		mCommandList->SetGraphicsRootShaderResourceView(0, instanceBuffer->GetGPUVirtualAddress());// 实例结构化buffer在管线上绑定到0号
 
         cmdList->DrawIndexedInstanced(ri->IndexCount, ri->InstanceCount/*此处不再是原先的1,而是设计为实例的数量*/, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }

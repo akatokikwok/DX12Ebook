@@ -4,11 +4,12 @@
 #include "../../Common/MathHelper.h"
 #include "../../Common/UploadBuffer.h"
 
+/// 帧资源里的实例结构体buffer
 struct InstanceData
 {
 	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-	UINT MaterialIndex;
+	UINT MaterialIndex;// 单个实例中的材质序数
 	UINT InstancePad0;
 	UINT InstancePad1;
 	UINT InstancePad2;
@@ -62,8 +63,7 @@ struct Vertex
 	DirectX::XMFLOAT2 TexC;
 };
 
-// Stores the resources needed for the CPU to build the command lists
-// for a frame.  
+// FrameResource(ID3D12Device* device, UINT passCount, UINT maxInstanceCount, UINT materialCount);
 struct FrameResource
 {
 public:
@@ -77,20 +77,10 @@ public:
     // So each frame needs their own allocator.
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
 
-    // We cannot update a cbuffer until the GPU is done processing the commands
-    // that reference it.  So each frame needs their own cbuffers.
-   // std::unique_ptr<UploadBuffer<FrameConstants>> FrameCB = nullptr;
+    // GPU未执行完命令之前,禁止对帧资源引用的常量缓存执行更新,因此,每一帧都需要持有自己独有的常量缓存
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
     std::unique_ptr<UploadBuffer<MaterialData>> MaterialBuffer = nullptr;
-
-	// NOTE: In this demo, we instance only one render-item, so we only have one structured buffer to 
-	// store instancing data.  To make this more general (i.e., to support instancing multiple render-items), 
-	// you would need to have a structured buffer for each render-item, and allocate each buffer with enough
-	// room for the maximum number of instances you would ever draw.  
-	// This sounds like a lot, but it is actually no more than the amount of per-object constant data we 
-	// would need if we were not using instancing.  For example, if we were drawing 1000 objects without instancing,
-	// we would create a constant buffer with enough room for a 1000 objects.  With instancing, we would just
-	// create a structured buffer large enough to store the instance data for 1000 instances.  
+    // 由于InstanceBuffer是动态缓存区(即upload缓存),所以允许在每一帧都对它执行更新
     std::unique_ptr<UploadBuffer<InstanceData>> InstanceBuffer = nullptr;
 
     // Fence value to mark commands up to this fence point.  This lets us
