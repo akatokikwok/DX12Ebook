@@ -7,9 +7,9 @@
 /// 帧资源里的实例结构体buffer
 struct InstanceData
 {
-	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
-	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-	UINT MaterialIndex;// 单个实例中的材质序数
+	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();          // 单个实例mesh的位置
+	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();   // 单个实例mesh的纹理变换矩阵 
+	UINT MaterialIndex;//  单个实例mesh的材质序数
 	UINT InstancePad0;
 	UINT InstancePad1;
 	UINT InstancePad2;

@@ -47,12 +47,12 @@ struct RenderItem
 	// Primitive topology.
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-	BoundingBox Bounds;// DirectxCollison库里提供的包围盒,是盒子中心与扩展向量组合的表达形式,公式是c=0.5(Vmin+Vmax), e=0.5(Vmax-Vmin)
-	std::vector<InstanceData> Instances;// 渲染项里持有实例化次数
+	BoundingBox Bounds;// 单个渲染项里的包围体; DirectxCollison库里提供的包围盒,是盒子中心与扩展向量组合的表达形式,公式是c=0.5(Vmin+Vmax), e=0.5(Vmax-Vmin)
+	std::vector<InstanceData> Instances;// 渲染项里持有的一组实例(允许大容量); 渲染项里持有实例化次数
 
 	// DrawIndexedInstanced parameters.
 	UINT IndexCount = 0;
-	UINT InstanceCount = 0;
+	UINT InstanceCount = 0;// 实例数量; 可能在Update入口里更新
 	UINT StartIndexLocation = 0;
 	int BaseVertexLocation = 0;
 };
@@ -206,7 +206,7 @@ void InstancingAndCullingApp::OnResize()
 	D3DApp::OnResize();
 
 	mCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
-
+	// 根据投影矩阵反过来计算观察空间里视锥体的函数如下
 	BoundingFrustum::CreateFromMatrix(mCamFrustum, mCamera.GetProj());
 }
 
@@ -360,48 +360,54 @@ void InstancingAndCullingApp::AnimateMaterials(const GameTimer& gt)
 
 void InstancingAndCullingApp::UpdateInstanceData(const GameTimer& gt)
 {
-	XMMATRIX view = mCamera.GetView();
-	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	XMMATRIX view = mCamera.GetView();									  // 暂存相机观察矩阵
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view); // 暂存相机观察矩阵的逆矩阵
 
-	auto currInstanceBuffer = mCurrFrameResource->InstanceBuffer.get();
+	auto currInstanceBuffer = mCurrFrameResource->InstanceBuffer.get();// 当前帧的实例buffer
+	// 遍历所有渲染项
 	for (auto& e : mAllRitems) {
+		// 拿到但个渲染项里所有的实例次数
 		const auto& instanceData = e->Instances;
-
+		// 有一个计数器,暗示第几个缓存区
+		// 来确保结构化buffer前面的数据均为可见实例;而实例与视锥体相交就会被加入结构化buffer的下一个空槽位
 		int visibleInstanceCount = 0;
 
+		// 遍历单个渲染项的所有实例
 		for (UINT i = 0; i < (UINT)instanceData.size(); ++i) {
-			XMMATRIX world = XMLoadFloat4x4(&instanceData[i].World);
-			XMMATRIX texTransform = XMLoadFloat4x4(&instanceData[i].TexTransform);
+			XMMATRIX world        = XMLoadFloat4x4(&instanceData[i].World);		  // 暂存单个实例的world
+			XMMATRIX texTransform = XMLoadFloat4x4(&instanceData[i].TexTransform);// 暂存单个实例的TexTransform
 
-			XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(world), world);
+			XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(world), world);// 暂存一下world的逆矩阵
+			XMMATRIX viewToLocal = XMMatrixMultiply(invView, invWorld);				// 暂存一下viewToWorld
 
-			// View space to the object's local space.
-			XMMATRIX viewToLocal = XMMatrixMultiply(invView, invWorld);
-
-			// Transform the camera frustum from view space to the object's local space.
+			/// 把摄像机的视锥体从 观察空间变换至单个实例的局部空间(因为骷髅头MESH的ABB盒子位于局部空间)
 			BoundingFrustum localSpaceFrustum;
 			mCamFrustum.Transform(localSpaceFrustum, viewToLocal);
 
-			// Perform the box/frustum intersection test in local space.
-			if ((localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT) || (mFrustumCullingEnabled == false)) {
+			/// 在局部空间执行 包围体和视锥的相交测试
+			// !!!!如若关闭视锥体裁剪或者查到包围体仍在视锥内,则会进到这个if里执行逻辑
+			// if里的逻辑就是"不执行剔除",仍然拷贝数据源到结构体buffer里,会导致实例数量增多
+			if ((localSpaceFrustum.Contains(e->Bounds) != DirectX::DISJOINT/*包围体位于视锥体之外*/) || 
+				(mFrustumCullingEnabled == false)) {
 				InstanceData data;
-				XMStoreFloat4x4(&data.World, XMMatrixTranspose(world));
+				XMStoreFloat4x4(&data.World,        XMMatrixTranspose(world));
 				XMStoreFloat4x4(&data.TexTransform, XMMatrixTranspose(texTransform));
 				data.MaterialIndex = instanceData[i].MaterialIndex;
 
-				// Write the instance data to structured buffer for the visible objects.
+				// 把上面构建的数据源data,也就是可见实例的数据, 拷贝到对应序数的结构化buffer里
 				currInstanceBuffer->CopyData(visibleInstanceCount++, data);
 			}
 		}
-
+		// 查完所有骷髅头实例后, 更新渲染项里的 实例数量
 		e->InstanceCount = visibleInstanceCount;
 
+		// 更新每帧 统计有多少个实例在被剔除操作后仍然可见
 		std::wostringstream outs;
 		outs.precision(6);
-		outs << L"Instancing and Culling Demo" <<
-			L"    " << e->InstanceCount <<
-			L" objects visible out of " << e->Instances.size();
-		mMainWndCaption = outs.str();
+		outs << L"实例化和裁剪工程里" <<
+			L"目前有:    " << e->InstanceCount <<
+			L" 个物体可以被看到 out of " << e->Instances.size();
+		mMainWndCaption = outs.str();// 打印到窗口标题上
 	}
 }
 
@@ -854,20 +860,23 @@ void InstancingAndCullingApp::BuildMaterials()
 
 void InstancingAndCullingApp::BuildRenderItems()
 {
-	auto skullRitem = std::make_unique<RenderItem>();
-	skullRitem->World = MathHelper::Identity4x4();
-	skullRitem->TexTransform = MathHelper::Identity4x4();
-	skullRitem->ObjCBIndex = 0;
-	skullRitem->Mat = mMaterials["tile0"].get();
-	skullRitem->Geo = mGeometries["skullGeo"].get();
+	auto skullRitem = std::make_unique<RenderItem>();// 构建一个骷髅头渲染项
+	skullRitem->World = MathHelper::Identity4x4();// 设定骷髅头的世界矩阵为单位矩阵
+	skullRitem->TexTransform = MathHelper::Identity4x4();// 设定 纹理变换矩阵也为默认单位矩阵
+	skullRitem->ObjCBIndex = 0;// 设定 骷髅头这一种种类的物体 物体索引为 0号(1种控制125个实例)
+	skullRitem->Mat = mMaterials["tile0"].get();// 设定 骷髅头的材质
+	skullRitem->Geo = mGeometries["skullGeo"].get();// 设定 影响波浪的几何体形状的管理员Geo是
 	skullRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	// 设定DrawIndexedInstanced渲染参数 实例数量为0
 	skullRitem->InstanceCount = 0;
+	// 设定DrawIndexedInstanced三项渲染参数为 管理员里的数据
 	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
 	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
 	skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
+	// 设定骷髅头渲染项的包围体是 submeshgeometry里的 Bounds
 	skullRitem->Bounds = skullRitem->Geo->DrawArgs["skull"].Bounds;
 
-	// Generate instance data.
+	// 专门给骷髅头使用实例化技术; 构造125个实例化个体,也是125次实例化
 	const int n = 5;
 	mInstanceCount = n * n * n;
 	skullRitem->Instances.resize(mInstanceCount);
@@ -886,21 +895,25 @@ void InstancingAndCullingApp::BuildRenderItems()
 	for (int k = 0; k < n; ++k) {
 		for (int i = 0; i < n; ++i) {
 			for (int j = 0; j < n; ++j) {
-				int index = k * n * n + i * n + j;
+				
+				int index = k * n * n + i * n + j;// 125个实例中的第几个骷髅头mesh?
+
 				// Position instanced along a 3D grid.
+				// 设置实例集合里每个实例(即单个骷髅头) 设置各自的 3D坐标
 				skullRitem->Instances[index].World = XMFLOAT4X4(
 					1.0f, 0.0f, 0.0f, 0.0f,
 					0.0f, 1.0f, 0.0f, 0.0f,
 					0.0f, 0.0f, 1.0f, 0.0f,
 					x + j * dx, y + i * dy, z + k * dz, 1.0f);
-
+				// 设置实例集合里每个实例(即单个骷髅头) 设置各自的 纹理变换
 				XMStoreFloat4x4(&skullRitem->Instances[index].TexTransform, XMMatrixScaling(2.0f, 2.0f, 1.0f));
+				// // 设置实例集合里每个实例(即单个骷髅头) 设置各自的 材质索引
 				skullRitem->Instances[index].MaterialIndex = index % mMaterials.size();
 			}
 		}
 	}
 
-
+	// 全局渲染项数组仅注册 骷髅头这1个渲染项
 	mAllRitems.push_back(std::move(skullRitem));
 
 	// All the render items are opaque.
