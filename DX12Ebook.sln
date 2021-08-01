@@ -55,6 +55,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "16_实例化与视锥体剔
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "InstancingAndCulling", "Chapter 16 Instancing and Frustum Culling\InstancingAndCulling\InstancingAndCulling.vcxproj", "{900012A5-6AF4-4295-8264-6EF60CE45E66}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "17_拾取", "17_拾取", "{70F47E1A-E2F2-4D95-8E34-F75AD2193ACA}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "17_Picking", "Chapter 17 Picking\17_Picking\17_Picking.vcxproj", "{18CA393F-5F72-4308-88F4-45BE140020CB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -215,6 +219,14 @@ Global
 		{900012A5-6AF4-4295-8264-6EF60CE45E66}.Release|x64.Build.0 = Release|x64
 		{900012A5-6AF4-4295-8264-6EF60CE45E66}.Release|x86.ActiveCfg = Release|Win32
 		{900012A5-6AF4-4295-8264-6EF60CE45E66}.Release|x86.Build.0 = Release|Win32
+		{18CA393F-5F72-4308-88F4-45BE140020CB}.Debug|x64.ActiveCfg = Debug|x64
+		{18CA393F-5F72-4308-88F4-45BE140020CB}.Debug|x64.Build.0 = Debug|x64
+		{18CA393F-5F72-4308-88F4-45BE140020CB}.Debug|x86.ActiveCfg = Debug|Win32
+		{18CA393F-5F72-4308-88F4-45BE140020CB}.Debug|x86.Build.0 = Debug|Win32
+		{18CA393F-5F72-4308-88F4-45BE140020CB}.Release|x64.ActiveCfg = Release|x64
+		{18CA393F-5F72-4308-88F4-45BE140020CB}.Release|x64.Build.0 = Release|x64
+		{18CA393F-5F72-4308-88F4-45BE140020CB}.Release|x86.ActiveCfg = Release|Win32
+		{18CA393F-5F72-4308-88F4-45BE140020CB}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -231,6 +243,7 @@ Global
 		{00B9AD32-5520-467C-A98B-B05C494186A2} = {DCF79809-A495-46A0-8F0A-2843EF444337}
 		{0B91E676-AA52-4FD3-B444-1ABE26298B8D} = {80DF6B78-A6FD-4A18-A415-DCB2BF1DC79B}
 		{900012A5-6AF4-4295-8264-6EF60CE45E66} = {1941986D-E8AA-437C-8918-A503B817C9D0}
+		{18CA393F-5F72-4308-88F4-45BE140020CB} = {70F47E1A-E2F2-4D95-8E34-F75AD2193ACA}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E11D927C-A760-491C-A0B0-4F0310DBCD42}
