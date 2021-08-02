@@ -674,7 +674,7 @@ void PickingApp::BuildPSOs()
 
 	//
 	// 高亮物体的 PSO
-	//
+	// 由于高亮材质是半透明的，所以我们要单独设置一个PSO来使用AlphaBlend，注意的是我们还要将深度测试改为<=，这样多次点击同一个三角形才不会出BUG
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC highlightPsoDesc = opaquePsoDesc;// 继承自非透明管线
 
@@ -696,8 +696,8 @@ void PickingApp::BuildPSOs()
 	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
 	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-
-	highlightPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;// 混合状态设定为通用标准透明
+	// 赋值RenderTarget第一个元素，即对每一个渲染目标执行相同操作
+	highlightPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&highlightPsoDesc, IID_PPV_ARGS(&mPSOs["highlight"])));// 创建出高亮管线
 }
 
@@ -718,12 +718,12 @@ void PickingApp::BuildMaterials()
 	gray0->DiffuseAlbedo = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
 	gray0->FresnelR0 = XMFLOAT3(0.04f, 0.04f, 0.04f);
 	gray0->Roughness = 0.0f;
-
+	// 定义一个高亮材质，此处使用半透的黄色。
 	auto highlight0 = std::make_unique<Material>();
 	highlight0->Name = "highlight0";
 	highlight0->MatCBIndex = 1;
 	highlight0->DiffuseSrvHeapIndex = 0;
-	highlight0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 0.0f, 0.6f);
+	highlight0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 0.0f, 0.6f);// //黄色半透明
 	highlight0->FresnelR0 = XMFLOAT3(0.06f, 0.06f, 0.06f);
 	highlight0->Roughness = 0.0f;
 
@@ -747,6 +747,8 @@ void PickingApp::BuildRenderItems()
 	carRitem->BaseVertexLocation = carRitem->Geo->DrawArgs["car"].BaseVertexLocation;
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(carRitem.get());
 
+	/// 初始化该被拾取三角形的各种属性，将黄色材质赋值于mat，绘制三参数将在射线检测三角形的时候给出，这儿仅初始化。
+	/// 并且仅设置一个实例，因为只会有一块三角形被高亮绘制
 	auto pickedRitem = std::make_unique<RenderItem>();
 	pickedRitem->World = MathHelper::Identity4x4();
 	pickedRitem->TexTransform = MathHelper::Identity4x4();
@@ -754,15 +756,13 @@ void PickingApp::BuildRenderItems()
 	pickedRitem->Mat = mMaterials["highlight0"].get();
 	pickedRitem->Geo = mGeometries["carGeo"].get();
 	pickedRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-	// Picked triangle is not visible until one is picked.
+	// 被拾取三角形可见性始终为不可见 直到被鼠标点中才可见
 	pickedRitem->Visible = false;
-
-	// DrawCall parameters are filled out when a triangle is picked.
+	// 绘制三参数将在射线检测三角形的时候给出，这儿仅初始化。
 	pickedRitem->IndexCount = 0;
 	pickedRitem->StartIndexLocation = 0;
 	pickedRitem->BaseVertexLocation = 0;
-	mPickedRitem = pickedRitem.get();
+	mPickedRitem = pickedRitem.get();// 暂存被拾取三角形物体的渲染项
 	mRitemLayer[(int)RenderLayer::Highlight].push_back(pickedRitem.get());
 
 
