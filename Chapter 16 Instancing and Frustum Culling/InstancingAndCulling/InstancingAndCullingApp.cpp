@@ -370,6 +370,8 @@ void InstancingAndCullingApp::UpdateInstanceData(const GameTimer& gt)
 		const auto& instanceData = e->Instances;
 		// 有一个计数器,暗示第几个缓存区
 		// 来确保结构化buffer前面的数据均为可见实例;而实例与视锥体相交就会被加入结构化buffer的下一个空槽位
+		// 要将visibleInstanceCount挪到遍历allRitems循环外，这样才能排序所有渲染项实例数据
+		// 如果有多个渲染项，如果InstanceIndex在循环内，后面数据将会覆盖掉前面的。
 		int visibleInstanceCount = 0;
 
 		// 遍历单个渲染项的所有实例
@@ -395,6 +397,7 @@ void InstancingAndCullingApp::UpdateInstanceData(const GameTimer& gt)
 				data.MaterialIndex = instanceData[i].MaterialIndex;
 
 				// 把上面构建的数据源data,也就是可见实例的数据, 拷贝到对应序数的结构化buffer里
+				// //将实例数据一个个地拷贝至GPU缓存; //复制完实例数据，递增到下一个实例
 				currInstanceBuffer->CopyData(visibleInstanceCount++, data);
 			}
 		}
