@@ -129,7 +129,7 @@ private:
 	// Render items divided by PSO.
 	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
 
-	RenderItem* mPickedRitem = nullptr;
+	RenderItem* mPickedRitem = nullptr;// 被拾取的渲染项三角形
 
 	PassConstants mMainPassCB;
 
@@ -282,8 +282,9 @@ void PickingApp::Draw(const GameTimer& gt)
 	// The root signature knows how many descriptors are expected in the table.
 	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
+	// 第一次绘制,先画出所有层级为"非透明"的渲染项
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
-
+	// 切换管线为黄色高亮管线,第二次绘制,层级为"高亮"的渲染项
 	mCommandList->SetPipelineState(mPSOs["highlight"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Highlight]);
 
@@ -672,18 +673,18 @@ void PickingApp::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
 	//
-	// PSO for highlight objects
+	// 高亮物体的 PSO
 	//
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC highlightPsoDesc = opaquePsoDesc;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC highlightPsoDesc = opaquePsoDesc;// 继承自非透明管线
 
-	// Change the depth test from < to <= so that if we draw the same triangle twice, it will
-	// still pass the depth test.  This is needed because we redraw the picked triangle with a
-	// different material to highlight it.  If we do not use <=, the triangle will fail the 
-	// depth test the 2nd time we try and draw it.
+	// 深度模板的比较函数设成<=
+	// 此处<=表示 仅接受pixel fragment 小于DepthBuffer里的像素深度  (即近处物体遮挡远处物体)
+	// 必须设定为<=,因为要确保即使绘制了同样的三角形2次,它仍会通过深度测试
+	// 这个<=是强制的,因为我们重新以一种不同的高亮材质重新绘制了拾取三角形,不使用<=则会导致在第二次深度测试失败
 	highlightPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 
-	// Standard transparency blending.
+	// 此黄色高亮管线 需要用到标准透明混合技术
 	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
 	transparencyBlendDesc.BlendEnable = true;
 	transparencyBlendDesc.LogicOpEnable = false;
@@ -696,8 +697,8 @@ void PickingApp::BuildPSOs()
 	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
 	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
-	highlightPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&highlightPsoDesc, IID_PPV_ARGS(&mPSOs["highlight"])));
+	highlightPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;// 混合状态设定为通用标准透明
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&highlightPsoDesc, IID_PPV_ARGS(&mPSOs["highlight"])));// 创建出高亮管线
 }
 
 void PickingApp::BuildFrameResources()
@@ -779,6 +780,7 @@ void PickingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::
 	for (size_t i = 0; i < ritems.size(); ++i) {
 		auto ri = ritems[i];
 
+		// 检测当前的高亮可见性; 跳过所有渲染项为不可见的物体,直接跳出并放弃本次渲染项,开始执行下一个渲染项
 		if (ri->Visible == false)
 			continue;
 
@@ -871,7 +873,7 @@ void PickingApp::Pick(int sx, int sy)
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(V), V);// 暂存一下 观察矩阵的逆矩阵
 
 	/// ====================以下逻辑负责把拾取射线从 观察空间变换到物体的 局部空间============================
-	// 假设开始用户不拾取任何点,故把渲染项可见性设置为不可见
+	// 假设开始用户不拾取任何点,故把拾取无的渲染项可见性重置为为不可见
 	mPickedRitem->Visible = false;
 
 	/// 检测用户是否拾取了一个非透明渲染项;实际项目里,可能会提前设置好一些"可拾取物列表"
@@ -897,6 +899,7 @@ void PickingApp::Pick(int sx, int sy)
 		/// 首先,如若射线碰到了包围盒,则有概率也碰到了MESH上的三角形,据此可以进一步判断射线与三角形相交
 		// 如果没碰到MESH的包围盒,则后续完全不用考虑,直接放弃
 		float tmin = 0.0f;
+		// BoundingBox::Intersects(原点,单位长度的方向,射线的相交参数),最后一个参数保存射线的相交参数P=r(t0)=q + t0u中的t0
 		if (ri->Bounds.Intersects(rayOrigin, rayDir, tmin)) {/// 判断渲染项里的包围盒是不是与 单位长度的拾取射线方向 相交
 			auto vertices = (Vertex*)geo->VertexBufferCPU->GetBufferPointer();     // 关联顶点的Blob内存副本,强转为本项目的顶点型指针,         即顶点数组
 			auto indices = (std::uint32_t*)geo->IndexBufferCPU->GetBufferPointer();// 关联索引的Blob内存副本,强转为本项目的std::uint32_t型指针,即索引数组
@@ -916,8 +919,8 @@ void PickingApp::Pick(int sx, int sy)
 				XMVECTOR v2 = XMLoadFloat3(&vertices[i2].Pos);
 				
 				float t = 0.0f;
-				if (TriangleTests::Intersects(rayOrigin, rayDir, v0, v1, v2, t)) {// 遍历MESH上的所有三角形来找到离相机最近的相交三角形
-					if (t < tmin) {
+				if (TriangleTests::Intersects(rayOrigin, rayDir, v0, v1, v2, t)) {// 让射线与三角形相交检测使用TriangleTests::Intersects
+					if (t < tmin) {// t和保存射线的相交参数tmin作比较
 						// 满足t小于tmin则证明这是离摄像机最近的一个被拾取三角形
 						tmin = t;
 						UINT pickedTriangle = i;// 暂存一下满足拾取需求的当前三角形的序数
@@ -925,7 +928,7 @@ void PickingApp::Pick(int sx, int sy)
 						mPickedRitem->Visible = true;
 						mPickedRitem->IndexCount = 3;
 						mPickedRitem->BaseVertexLocation = 0;
-						mPickedRitem->World = ri->World;
+						mPickedRitem->World = ri->World;// 强制让被拾取的三角形与被拾取的物体(即遍历的单个渲染项)保持一模一样的世界矩阵
 						mPickedRitem->NumFramesDirty = gNumFrameResources;
 						mPickedRitem->StartIndexLocation = 3 * pickedTriangle;// 偏移到被拾取三角形的 索引缓存处
 					}
