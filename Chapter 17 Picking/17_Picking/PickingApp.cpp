@@ -851,15 +851,19 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> PickingApp::GetStaticSamplers()
 		anisotropicWrap, anisotropicClamp };
 }
 
+/// 计算观察空间内 拾取射线的逻辑
 void PickingApp::Pick(int sx, int sy)
 {
 	XMFLOAT4X4 P = mCamera.GetProj4x4f();
 
-	// Compute picking ray in view space.
-	float vx = (+2.0f * sx / mClientWidth - 1.0f) / P(0, 0);
+	/// 从 屏幕空间变换回 观察空间的关系 :
+	/// Xview = r(2Xscreen / w - 1) * tan(α / 2)
+	/// Yview = (-2Yscreen / h + 1) * tan(α / 2)
+	/// 由于P00和P11这两个位置的元素分别恰好在 投影矩阵里 p00= 1 / (rtan(α/2)), p11 = 1/tan(α/2),
+	float vx = (+2.0f * sx / mClientWidth - 1.0f)  / P(0, 0);
 	float vy = (-2.0f * sy / mClientHeight + 1.0f) / P(1, 1);
 
-	// Ray definition in view space.
+	// 在观察空间里 拾取射线的定义, 拾取射线的原点在于观察空间的原点
 	XMVECTOR rayOrigin = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 	XMVECTOR rayDir = XMVectorSet(vx, vy, 1.0f, 0.0f);
 
