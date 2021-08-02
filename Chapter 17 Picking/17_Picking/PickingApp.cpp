@@ -25,7 +25,7 @@ struct RenderItem
 	RenderItem() = default;
 	RenderItem(const RenderItem& rhs) = delete;
 
-	bool Visible = true;
+	bool Visible = true;// 单个渲染项的可见性
 
 	BoundingBox Bounds;
 
@@ -864,80 +864,70 @@ void PickingApp::Pick(int sx, int sy)
 	float vy = (-2.0f * sy / mClientHeight + 1.0f) / P(1, 1);
 
 	// 在观察空间里 拾取射线的定义, 拾取射线的原点在于观察空间的原点
-	XMVECTOR rayOrigin = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
-	XMVECTOR rayDir = XMVectorSet(vx, vy, 1.0f, 0.0f);
+	XMVECTOR rayOrigin = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);// 观察空间里的拾取射线原点
+	XMVECTOR rayDir    = XMVectorSet(vx, vy, 1.0f, 0.0f);    // 观察空间里的拾取射线方向
 
 	XMMATRIX V = mCamera.GetView();
-	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(V), V);
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(V), V);// 暂存一下 观察矩阵的逆矩阵
 
-	// Assume nothing is picked to start, so the picked render-item is invisible.
+	/// ====================以下逻辑负责把拾取射线从 观察空间变换到物体的 局部空间============================
+	// 假设开始用户不拾取任何点,故把渲染项可见性设置为不可见
 	mPickedRitem->Visible = false;
 
-	// Check if we picked an opaque render item.  A real app might keep a separate "picking list"
-	// of objects that can be selected.   
+	/// 检测用户是否拾取了一个非透明渲染项;实际项目里,可能会提前设置好一些"可拾取物列表"
+	// 遍历所有非透明渲染项
 	for (auto ri : mRitemLayer[(int)RenderLayer::Opaque]) {
+		// 拿取 几何管理员
 		auto geo = ri->Geo;
-
-		// Skip invisible render-items.
+		// 跳过不可见渲染项
 		if (ri->Visible == false)
 			continue;
 
-		XMMATRIX W = XMLoadFloat4x4(&ri->World);
-		XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(W), W);
+		XMMATRIX W = XMLoadFloat4x4(&ri->World);// 世界矩阵
+		XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(W), W);// 世界矩阵的逆矩阵
 
-		// Tranform ray to vi space of Mesh.
-		XMMATRIX toLocal = XMMatrixMultiply(invView, invWorld);
+		/// 将射线变换到MESH的局部空间
+		XMMATRIX toLocal = XMMatrixMultiply(invView, invWorld);// View逆矩阵和World逆矩阵 叠加起来得到从观察空间 变换至 局部空间
+		rayOrigin = XMVector3TransformCoord(rayOrigin, toLocal);// XMVector3TransformCoord负责变换点,第四分量W为1
+		rayDir    = XMVector3TransformNormal(rayDir, toLocal);  // XMVector3TransformNormal负责变换向量,第四分量w为0
 
-		rayOrigin = XMVector3TransformCoord(rayOrigin, toLocal);
-		rayDir = XMVector3TransformNormal(rayDir, toLocal);
-
-		// Make the ray direction unit length for the intersection tests.
+		// 为相交检测而计算拾取射线方向上的单位长度
 		rayDir = XMVector3Normalize(rayDir);
 
-		// If we hit the bounding box of the Mesh, then we might have picked a Mesh triangle,
-		// so do the ray/triangle tests.
-		//
-		// If we did not hit the bounding box, then it is impossible that we hit 
-		// the Mesh, so do not waste effort doing ray/triangle tests.
+		/// 首先,如若射线碰到了包围盒,则有概率也碰到了MESH上的三角形,据此可以进一步判断射线与三角形相交
+		// 如果没碰到MESH的包围盒,则后续完全不用考虑,直接放弃
 		float tmin = 0.0f;
-		if (ri->Bounds.Intersects(rayOrigin, rayDir, tmin)) {
-			// NOTE: For the demo, we know what to cast the vertex/index data to.  If we were mixing
-			// formats, some metadata would be needed to figure out what to cast it to.
-			auto vertices = (Vertex*)geo->VertexBufferCPU->GetBufferPointer();
-			auto indices = (std::uint32_t*)geo->IndexBufferCPU->GetBufferPointer();
-			UINT triCount = ri->IndexCount / 3;
+		if (ri->Bounds.Intersects(rayOrigin, rayDir, tmin)) {/// 判断渲染项里的包围盒是不是与 单位长度的拾取射线方向 相交
+			auto vertices = (Vertex*)geo->VertexBufferCPU->GetBufferPointer();     // 关联顶点的Blob内存副本,强转为本项目的顶点型指针,         即顶点数组
+			auto indices = (std::uint32_t*)geo->IndexBufferCPU->GetBufferPointer();// 关联索引的Blob内存副本,强转为本项目的std::uint32_t型指针,即索引数组
+			UINT triCount = ri->IndexCount / 3;// 由于是三角形, MESH的三角形数量就等于 1/3的索引数
 
-			// Find the nearest ray/triangle intersection.
+			// 找到离摄像机最近的三角形执行 三角形与拾取射线的相交检测
 			tmin = MathHelper::Infinity;
-			for (UINT i = 0; i < triCount; ++i) {
-				// Indices for this triangle.
+			for (UINT i = 0; i < triCount; ++i) {/// 遍历所有三角形
+				// 此三角形的索引
 				UINT i0 = indices[i * 3 + 0];
 				UINT i1 = indices[i * 3 + 1];
 				UINT i2 = indices[i * 3 + 2];
 
-				// Vertices for this triangle.
+				// 此三角形的顶点
 				XMVECTOR v0 = XMLoadFloat3(&vertices[i0].Pos);
 				XMVECTOR v1 = XMLoadFloat3(&vertices[i1].Pos);
 				XMVECTOR v2 = XMLoadFloat3(&vertices[i2].Pos);
-
-				// We have to iterate over all the triangles in order to find the nearest intersection.
+				
 				float t = 0.0f;
-				if (TriangleTests::Intersects(rayOrigin, rayDir, v0, v1, v2, t)) {
+				if (TriangleTests::Intersects(rayOrigin, rayDir, v0, v1, v2, t)) {// 遍历MESH上的所有三角形来找到离相机最近的相交三角形
 					if (t < tmin) {
-						// This is the new nearest picked triangle.
+						// 满足t小于tmin则证明这是离摄像机最近的一个被拾取三角形
 						tmin = t;
-						UINT pickedTriangle = i;
-
+						UINT pickedTriangle = i;// 暂存一下满足拾取需求的当前三角形的序数
+						/// 为待拾取的最近三角形设置渲染项, 这里用特定的"heighlight材质"对三角形执行渲染
 						mPickedRitem->Visible = true;
 						mPickedRitem->IndexCount = 3;
 						mPickedRitem->BaseVertexLocation = 0;
-
-						// Picked render item needs same world matrix as object picked.
 						mPickedRitem->World = ri->World;
 						mPickedRitem->NumFramesDirty = gNumFrameResources;
-
-						// Offset to the picked triangle in the mesh index buffer.
-						mPickedRitem->StartIndexLocation = 3 * pickedTriangle;
+						mPickedRitem->StartIndexLocation = 3 * pickedTriangle;// 偏移到被拾取三角形的 索引缓存处
 					}
 				}
 			}

@@ -54,7 +54,7 @@ struct MaterialData
 	UINT MaterialPad1;
 	UINT MaterialPad2;
 };
-
+// 本项目要用到的顶点结构体
 struct Vertex
 {
 	DirectX::XMFLOAT3 Pos;
