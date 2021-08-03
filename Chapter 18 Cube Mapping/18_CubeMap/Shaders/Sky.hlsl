@@ -1,8 +1,8 @@
-//=============================================================================
-// Sky.fx by Frank Luna (C) 2011 All Rights Reserved.
-//=============================================================================
+﻿// SkySphere.hlsl”，代码比较简单，唯一要注意的两点：
+//1、总是以摄像机作为天空球的中心， 摄像机动，
+//天空球也跟着动,这样摄像机永远不会移到天空球外,造成穿帮。
+//2 、立方体贴图可以直接使用Sample函数, 只是第二个参数是三维向量， 即查找向量。
 
-// Include common HLSL code.
 #include "Common.hlsl"
 
 struct VertexIn
@@ -22,16 +22,16 @@ VertexOut VS(VertexIn vin)
 {
 	VertexOut vout;
 
-	// Use local vertex position as cubemap lookup vector.
+	// CubeMap的查找向量是PosL
 	vout.PosL = vin.PosL;
 	
-	// Transform to world space.
+	// 将顶点变换到世界坐标
 	float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
 
-	// Always center sky about camera.
+	// 总是以摄像机作为天空球的中心
 	posW.xyz += gEyePosW;
 
-	// Set z = w so that z/w = 1 (i.e., skydome always on far plane).
+	// 将顶点变换到齐次裁剪空间
 	vout.PosH = mul(posW, gViewProj).xyww;
 	
 	return vout;
@@ -39,6 +39,7 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-	return gCubeMap.Sample(gsamLinearWrap, pin.PosL);
+	// 线性采样CubeMap
+	return gCubeMap.Sample(gsamLinearWrap, pin.PosL/*立方体纹理的查找向量*/);
 }
 

@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // Common.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -30,20 +30,20 @@ struct MaterialData
 	uint     MatPad2;
 };
 
-TextureCube gCubeMap : register(t0);
+TextureCube gCubeMap : register(t0); // 立方体纹理使用 TextureCube关键字表示
 
-// An array of textures, which is only supported in shader model 5.1+.  Unlike Texture2DArray, the textures
-// in this array can be different sizes and formats, making it more flexible than texture arrays.
-Texture2D gDiffuseMap[4] : register(t1);
+//一种只有SM5.1才支持的纹理数组
+//与Texture2DArray类型数组不同的是，此数组中所存纹理的尺寸和格式可各不相同
+//这使它比一般纹理数组更为灵活
+Texture2D gDiffuseMap[4] : register(t1); //所有2D漫反射贴图
 
-// Put in space1, so the texture array does not overlap with these resources.  
-// The texture array will occupy registers t0, t1, ..., t3 in space0. 
+//材质数据的结构化缓冲区，使用t0的space1空间
 StructuredBuffer<MaterialData> gMaterialData : register(t0, space1);
 
-
+//6个不同类型的采样器
 SamplerState gsamPointWrap        : register(s0);
 SamplerState gsamPointClamp       : register(s1);
-SamplerState gsamLinearWrap       : register(s2);
+SamplerState gsamLinearWrap       : register(s2);// 使用线性采样
 SamplerState gsamLinearClamp      : register(s3);
 SamplerState gsamAnisotropicWrap  : register(s4);
 SamplerState gsamAnisotropicClamp : register(s5);
@@ -52,7 +52,7 @@ SamplerState gsamAnisotropicClamp : register(s5);
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
-	float4x4 gTexTransform;
+    float4x4 gTexTransform; //UV顶点变换矩阵
 	uint gMaterialIndex;
 	uint gObjPad0;
 	uint gObjPad1;
