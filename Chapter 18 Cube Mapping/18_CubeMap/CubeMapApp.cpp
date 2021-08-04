@@ -877,14 +877,15 @@ void CubeMapApp::BuildMaterials()
 	tile0->DiffuseAlbedo = XMFLOAT4(0.9f, 0.9f, 0.9f, 1.0f);
 	tile0->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
 	tile0->Roughness = 0.1f;
-
+	// 定义镜面反射材质，颜色偏蓝色，并且将roughness降低，提高反射率
+	// 反射最为强烈，骷髅次之，其他的rouness为1，取反后就是0
 	auto mirror0 = std::make_unique<Material>();
 	mirror0->Name = "mirror0";
 	mirror0->MatCBIndex = 2;
 	mirror0->DiffuseSrvHeapIndex = 2;
 	mirror0->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.1f, 1.0f);
 	mirror0->FresnelR0 = XMFLOAT3(0.98f, 0.97f, 0.95f);
-	mirror0->Roughness = 0.1f;
+	mirror0->Roughness = 0.1f;// 光滑，反射高
 
 	auto skullMat = std::make_unique<Material>();
 	skullMat->Name = "skullMat";

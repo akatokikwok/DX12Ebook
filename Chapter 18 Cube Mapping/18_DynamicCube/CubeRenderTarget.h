@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // CubeRenderTarget.h by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -60,7 +60,7 @@ private:
 	CD3DX12_GPU_DESCRIPTOR_HANDLE mhGpuSrv;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuRtv[6];
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> mCubeMap = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mCubeMap = nullptr;// CUBEMAP整个资源,是一种D3D12资源
 };
 
  
