@@ -256,7 +256,7 @@ struct Material
 	// 漫反射纹理位于SRV堆中的索引, 默认为-1
 	int DiffuseSrvHeapIndex = -1;
 
-	// 法线纹理位于SRV堆中的索引,默认为-1
+	// 增加normalSrvHeapIndex字段，存放法线纹理在SRV堆中的索引。,默认为-1
 	int NormalSrvHeapIndex = -1;
 
 	// "脏标记", 用以表示本材质已有变动,提示更新常数缓存,默认为3(帧资源个数);

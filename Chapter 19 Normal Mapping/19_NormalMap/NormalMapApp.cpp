@@ -1,6 +1,23 @@
 ﻿//***************************************************************************************
-// NormalMapApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
+// 法线图中的每一个像素都存储了一条法向量,而非RGB颜色
+// 每个通道就是8位，即[0, 255]取值，而归一化法线是[-1, 1]取值，所以从法线数据存储到法线图上需要压缩，使用 [公式] 来压缩
+// 从法线图到法线数据需要解压，使用 [公式] 来解压。
+// DX12中使用Sample函数来采样法线图，要注意的是，此函数已经除以255，将法线从[0, 255]转换成了[0, 1]之间，所以之后只需*2-1即可。
+// 从法线纹理到法线数据 只需要乘二减一
+// 一个向量每个维度的取值范围在(-1, 1)，而纹理每个通道的值范围在(0, 1)，因此我们需要做一个映射，
+// 即pixel = (normal + 1) / 2; normal =2 * pixel - 1
 //***************************************************************************************
+// 三角形不互相平行，那他们的纹理空间肯定是不同的。所以如果使用这种空间作为法线图空间的话，会导致三角形边缘的硬切边
+// 由于纹理空间的限制，我们改用顶点切线空间
+// 顶点的切向量是相邻面切向量的平均值，这样就能使顶点法线区域平滑
+// 同一顶点的相邻三角面使用同一张Normal纹理，那么顶点上的切线T一定是唯一的，并且指向纹理的U方向，而副切线B指向纹理的V方向。
+//***************************************************************************************
+//（2）增加模型顶点切线数据
+// 我们要做光照计算，必须要将法线空间和灯光、摄像机等处于同一空间下。我们选择世界空间，所以要将切线空间的法线变换到世界空间下，
+// 因此要使用世界空间下的切空间坐标基来构建T2W矩阵，那么前提是需要获得切空间下的法线、切线、副切线，而副切线可以通过法线和切线叉积计算得到，
+// 所以最关键是要得到顶点切线和法线，法线先前已经获得，所以要从创建模型时得到顶点切线数据。
+
+
 
 #include "../../Common/d3dApp.h"
 #include "../../Common/MathHelper.h"
@@ -387,24 +404,26 @@ void NormalMapApp::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
+/// 更新结构化材质
 void NormalMapApp::UpdateMaterialBuffer(const GameTimer& gt)
 {
-	auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();
+	auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();// 当前帧的结构化材质
+	// 遍历全局材质集
 	for (auto& e : mMaterials) {
-		// Only update the cbuffer data if the constants have changed.  If the cbuffer
-		// data changes, it needs to be updated for each FrameResource.
-		Material* mat = e.second.get();
+		Material* mat = e.second.get();// 拿到单个键值对的值，即Material指针,即单个材质
 		if (mat->NumFramesDirty > 0) {
 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
-
+			// 将定义的材质资源属性传给 CB中的结构化材质
+			// 即构建一个结构化材质 数据源
 			MaterialData matData;
 			matData.DiffuseAlbedo = mat->DiffuseAlbedo;
 			matData.FresnelR0 = mat->FresnelR0;
 			matData.Roughness = mat->Roughness;
 			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
 			matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
-			matData.NormalMapIndex = mat->NormalSrvHeapIndex;
+			matData.NormalMapIndex  = mat->NormalSrvHeapIndex;
 
+			// 将数据源,即结构化材质 拷贝至 常量缓存区的 对应索引地址mat->matCBIndex处
 			currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
 
 			// Next FrameResource need to be updated too.
@@ -453,11 +472,11 @@ void NormalMapApp::LoadTextures()
 	std::vector<std::string> texNames =
 	{
 		"bricksDiffuseMap",
-		"bricksNormalMap",
+		"bricksNormalMap",// 砖块法线贴图
 		"tileDiffuseMap",
-		"tileNormalMap",
+		"tileNormalMap",  // 瓷  法线贴图
 		"defaultDiffuseMap",
-		"defaultNormalMap",
+		"defaultNormalMap",// 其他物件(反射球) 法线贴图
 		"skyCubeMap"
 	};
 
@@ -473,34 +492,31 @@ void NormalMapApp::LoadTextures()
 	};
 
 	for (int i = 0; i < (int)texNames.size(); ++i) {
-		auto texMap = std::make_unique<Texture>();
+		auto texMap = std::make_unique<Texture>();// CreateDDSTextureFromFile12接口来构造纹理
 		texMap->Name = texNames[i];
 		texMap->Filename = texFilenames[i];
 		ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 			mCommandList.Get(), texMap->Filename.c_str(),
 			texMap->Resource, texMap->UploadHeap));
-
+		// 全局纹理里注册
 		mTextures[texMap->Name] = std::move(texMap);
 	}
 }
 
 void NormalMapApp::BuildRootSignature()
 {
-	CD3DX12_DESCRIPTOR_RANGE texTable0;
-	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
-
-	CD3DX12_DESCRIPTOR_RANGE texTable1;
-	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 1, 0);
+	CD3DX12_DESCRIPTOR_RANGE texTable0;// Cubemap Texture
+	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1/*描述符数量（纹理数量*/,  0/*寄存器槽号*/, 0);
+	CD3DX12_DESCRIPTOR_RANGE texTable1;// // 2d texture, 绑定纹理的Range时，修改纹理SRV的数量。
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10/*描述符数量（纹理数量*/, 1/*寄存器槽号*/, 0);
 
 	// Root parameter can be a table, root descriptor or root constants.
 	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
-
-	// Perfomance TIP: Order from most frequent to least frequent.
-	slotRootParameter[0].InitAsConstantBufferView(0);
-	slotRootParameter[1].InitAsConstantBufferView(1);
-	slotRootParameter[2].InitAsShaderResourceView(0, 1);
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[0].InitAsConstantBufferView(0);// objCB绑定槽号为b0的寄存器,但是space在0号
+	slotRootParameter[1].InitAsConstantBufferView(1);// passCB绑定槽号为b1的寄存器
+	slotRootParameter[2].InitAsShaderResourceView(0, 1);// matSB也绑定槽号为t0的寄存器,但是space却在1号（和纹理公用一个SRV寄存器，但是不同Space）
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);// CubeMap纹理绑定槽号为t0的寄存器,但是space却在0号
+	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);// 10个元素的2D纹理数组, texturearraySB[10],放在槽号为t1的寄存器
 
 
 	auto staticSamplers = GetStaticSamplers();
@@ -534,7 +550,7 @@ void NormalMapApp::BuildDescriptorHeaps()
 	// Create the SRV heap.
 	//
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 10;
+	srvHeapDesc.NumDescriptors = 10;// 与根签名里的纹理SRV密切相关
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -544,6 +560,7 @@ void NormalMapApp::BuildDescriptorHeaps()
 	//
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
+	// 先取出六张法线贴图组成一个 D3D资源数组
 	std::vector<ComPtr<ID3D12Resource>> tex2DList =
 	{
 		mTextures["bricksDiffuseMap"]->Resource,
@@ -561,7 +578,7 @@ void NormalMapApp::BuildDescriptorHeaps()
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
+	// 对于每个法线贴图进行单独的创建 SRV并对各自的句柄执行偏移
 	for (UINT i = 0; i < (UINT)tex2DList.size(); ++i) {
 		srvDesc.Format = tex2DList[i]->GetDesc().Format;
 		srvDesc.Texture2D.MipLevels = tex2DList[i]->GetDesc().MipLevels;
@@ -571,13 +588,14 @@ void NormalMapApp::BuildDescriptorHeaps()
 		hDescriptor.Offset(1, mCbvSrvDescriptorSize);
 	}
 
+	/* 这部分是对CUBEMAP单独构建一个 SRV*/
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 	srvDesc.TextureCube.MostDetailedMip = 0;
 	srvDesc.TextureCube.MipLevels = skyCubeMap->GetDesc().MipLevels;
 	srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
 	srvDesc.Format = skyCubeMap->GetDesc().Format;
 	md3dDevice->CreateShaderResourceView(skyCubeMap.Get(), &srvDesc, hDescriptor);
-
+	// 暂存天空球 cubemap纹理在SRV堆中的索引
 	mSkyTexHeapIndex = (UINT)tex2DList.size();
 }
 
@@ -600,7 +618,7 @@ void NormalMapApp::BuildShadersAndInputLayout()
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },// 增加Tangent语义
 	};
 }
 
@@ -667,7 +685,7 @@ void NormalMapApp::BuildShapeGeometry()
 		vertices[k].Pos = box.Vertices[i].Position;
 		vertices[k].Normal = box.Vertices[i].Normal;
 		vertices[k].TexC = box.Vertices[i].TexC;
-		vertices[k].TangentU = box.Vertices[i].TangentU;
+		vertices[k].TangentU = box.Vertices[i].TangentU;// 创建几何体时候获取Tangent数据。
 	}
 
 	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k) {
@@ -797,6 +815,10 @@ void NormalMapApp::BuildFrameResources()
 
 void NormalMapApp::BuildMaterials()
 {
+	/// 将每个材质的normalSrvHeapIndex赋值，指定对应的法线贴图。
+	/// 其他物体使用一张通用法线图，RGBA都为1的法线图，即没有法线效果。
+
+
 	auto bricks0 = std::make_unique<Material>();
 	bricks0->Name = "bricks0";
 	bricks0->MatCBIndex = 0;

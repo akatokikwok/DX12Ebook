@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // Common.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -30,7 +30,7 @@ struct MaterialData
     uint MatPad2;
 };
 
-TextureCube gCubeMap : register(t0);
+TextureCube gCubeMap : register(t0, space0);
 
 // An array of textures, which is only supported in shader model 5.1+.  Unlike Texture2DArray, the textures
 // in this array can be different sizes and formats, making it more flexible than texture arrays.
@@ -86,21 +86,21 @@ cbuffer cbPass : register(b1)
 };
 
 //---------------------------------------------------------------------------------------
-// Transforms a normal map sample to world space.
+// 新建NormalSampleToWorldSpace函数，将法线从切空间变换到世界空间
 //---------------------------------------------------------------------------------------
 float3 NormalSampleToWorldSpace(float3 normalMapSample, float3 unitNormalW, float3 tangentW)
 {
-	// Uncompress each component from [0,1] to [-1,1].
+	// 将法线贴图每个像素的法线值从[0, 1]映射到[-1 ,1],得到法线值
     float3 normalT = 2.0f * normalMapSample - 1.0f;
 
-	// Build orthonormal basis.
+	// 规范正交基
     float3 N = unitNormalW;
     float3 T = normalize(tangentW - dot(tangentW, N) * N);
     float3 B = cross(N, T);
-
+    // 构造Tangant to World矩阵
     float3x3 TBN = float3x3(T, B, N);
 
-	// Transform from tangent space to world space.
+	// 将法线从切线空间转至世界空间
     float3 bumpedNormalW = mul(normalT, TBN);
 
     return bumpedNormalW;
