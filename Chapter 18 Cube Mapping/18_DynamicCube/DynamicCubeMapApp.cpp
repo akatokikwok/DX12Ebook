@@ -198,7 +198,7 @@ bool DynamicCubeMapApp::Initialize()
 	/*(5) 调用CubeMap的构造器在Init函数中初始化*/
 	mDynamicCubeMap = std::make_unique<CubeRenderTarget>(md3dDevice.Get(),
 		CubeMapSize, CubeMapSize, DXGI_FORMAT_R8G8B8A8_UNORM
-	);
+		);
 
 	LoadTextures();
 
@@ -253,7 +253,7 @@ void DynamicCubeMapApp::CreateRtvAndDsvDescriptorHeaps()
 	dsvHeapDesc.NodeMask = 0;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
 		&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
-	
+
 	// 顺便暂存 那个从DSV堆里取出1个DSV句柄
 	mCubeDSV = CD3DX12_CPU_DESCRIPTOR_HANDLE(
 		mDsvHeap->GetCPUDescriptorHandleForHeapStart(),
@@ -336,7 +336,7 @@ void DynamicCubeMapApp::Draw(const GameTimer& gt)
 	// that we only have to specify the first descriptor in the table.  
 	// The root signature knows how many descriptors are expected in the table.
 	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	
+
 	/// 
 	///* (7.2)渲染完CubeMap，我们还要渲染主场景，并且将动态CubeMap绘制到中心球体上。
 	///
@@ -657,7 +657,7 @@ void DynamicCubeMapApp::BuildDescriptorHeaps()
 	// 从SRV堆里提出句柄准备执行偏移
 	//
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-	
+
 	// 提出所有的贴图资源
 	auto bricksTex = mTextures["bricksDiffuseMap"]->Resource;
 	auto tileTex = mTextures["tileDiffuseMap"]->Resource;
@@ -737,7 +737,7 @@ void DynamicCubeMapApp::BuildCubeDepthStencil()
 	optClear.Format = mDepthStencilFormat;							//24位深度，8位模板,还有个无类型的格式DXGI_FORMAT_R24G8_TYPELESS也可以使用
 	optClear.DepthStencil.Depth = 1.0f;								//初始深度值为1
 	optClear.DepthStencil.Stencil = 0;								//初始模板值为0
-	
+
 	/*创建一个资源和一个堆，并将资源提交至堆中（将深度模板数据提交至GPU显存中）*/
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -754,7 +754,7 @@ void DynamicCubeMapApp::BuildCubeDepthStencil()
 	mCommandList->ResourceBarrier(
 		1, //Barrier屏障个数
 		&CD3DX12_RESOURCE_BARRIER::Transition(mCubeDepthStencilBuffer.Get(),
-			D3D12_RESOURCE_STATE_COMMON, 
+			D3D12_RESOURCE_STATE_COMMON,
 			D3D12_RESOURCE_STATE_DEPTH_WRITE)//转换后状态为可写入的深度图，还有一个D3D12_RESOURCE_STATE_DEPTH_READ是只可读的深度图
 	);
 }

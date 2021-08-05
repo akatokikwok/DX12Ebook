@@ -6,9 +6,9 @@
 
 /// (5)设置CubeMap的ViewPort和ScissorRect
 /// 初始化成员变量、视口、裁剪矩形、CubeMap资源
-CubeRenderTarget::CubeRenderTarget(ID3D12Device* device, 
-	                       UINT width, UINT height,
-                           DXGI_FORMAT format)
+CubeRenderTarget::CubeRenderTarget(ID3D12Device* device,
+	UINT width, UINT height,
+	DXGI_FORMAT format)
 {
 	md3dDevice = device;
 
@@ -34,7 +34,7 @@ CubeRenderTarget::CubeRenderTarget(ID3D12Device* device,
 	BuildResource();
 }
 
-ID3D12Resource*  CubeRenderTarget::Resource()
+ID3D12Resource* CubeRenderTarget::Resource()
 {
 	return mCubeMap.Get();
 }
@@ -62,14 +62,14 @@ D3D12_RECT CubeRenderTarget::ScissorRect()const
 /// （3）构建动态CubeMap资源的RTV和SRV描述符
 /// 供主APP使用,此函数负责 暂存SRV和RTV描述符堆句柄的引用, 为立方体图资源创建SRV和6个面的RTV描述符
 void CubeRenderTarget::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
-	                                CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
-	                                CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv[6])
+	CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
+	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv[6])
 {
 	//暂存SRV和RTV描述符堆句柄的引用，传入构建描述符
 	mhCpuSrv = hCpuSrv;
 	mhGpuSrv = hGpuSrv;
 
-	for(int i = 0; i < 6; ++i)
+	for (int i = 0; i < 6; ++i)
 		mhCpuRtv[i] = hCpuRtv[i];
 
 	//为立方体图资源创建SRV和6个面的RTV描述符
@@ -78,8 +78,7 @@ void CubeRenderTarget::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
 
 void CubeRenderTarget::OnResize(UINT newWidth, UINT newHeight)
 {
-	if((mWidth != newWidth) || (mHeight != newHeight))
-	{
+	if ((mWidth != newWidth) || (mHeight != newHeight)) {
 		mWidth = newWidth;
 		mHeight = newHeight;
 
@@ -89,7 +88,7 @@ void CubeRenderTarget::OnResize(UINT newWidth, UINT newHeight)
 		BuildDescriptors();
 	}
 }
- 
+
 /// （3）构建CubeMap所需描述符 (1个SRV 和 6个面每个面1个RTV)
 void CubeRenderTarget::BuildDescriptors()
 {
@@ -104,9 +103,8 @@ void CubeRenderTarget::BuildDescriptors()
 	md3dDevice->CreateShaderResourceView(mCubeMap.Get(), &srvDesc, mhCpuSrv);
 
 	// 给6个面每个面创建RTV
-	for(int i = 0; i < 6; ++i)
-	{
-		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc; 
+	for (int i = 0; i < 6; ++i) {
+		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
 		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DARRAY;
 		rtvDesc.Format = mFormat;
 		rtvDesc.Texture2DArray.MipSlice = 0;
