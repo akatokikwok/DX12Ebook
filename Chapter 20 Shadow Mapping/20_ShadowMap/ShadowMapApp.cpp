@@ -1,6 +1,16 @@
 ﻿//***************************************************************************************
-// ShadowMapApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
+// 1. ShadowMap的基本概念
+// 视线方向和平行光源（太阳光）的发射方向重合，那么我们看到的场景是全光照的（没有丝毫阴影），
+// 将这个视角下（灯光位置设置一个摄像机，并且方向和灯光一致）场景的像素深度值渲染到一张纹理上，这张纹理就称作阴影图，即ShadowMap
+// 物体像素P在灯光空间下的坐标Z分量（深度）记作d(p)
+// 使用投影纹理技术，得到ShadowCoords（阴影图采样坐标）去采样ShadowMap，得到P点映射在ShadowMap上的深度值，记作s(p)
+// dp >Sp表明物体在阴影中
 //***************************************************************************************
+// 投影纹理坐标（计算ShadowCoords）
+// 2. 一定有一点 P' 是离摄像机最近的，也就是ShadowMap上对应的纹素R值P'就可以作为ShadowCoords去采样ShadowMap
+// 如何将点P转换到 P' ，我们分三步走
+// 将点P转换到光源空间->将光源空间转至NDC空间->将NDC空间转至纹理空间
+
 
 #include "../../Common/d3dApp.h"
 #include "../../Common/MathHelper.h"
@@ -143,12 +153,12 @@ private:
 
 	DirectX::BoundingSphere mSceneBounds;
 
-	float mLightNearZ = 0.0f;
-	float mLightFarZ = 0.0f;
-	XMFLOAT3 mLightPosW;
-	XMFLOAT4X4 mLightView = MathHelper::Identity4x4();
-	XMFLOAT4X4 mLightProj = MathHelper::Identity4x4();
-	XMFLOAT4X4 mShadowTransform = MathHelper::Identity4x4();
+	float mLightNearZ = 0.0f;								// 近平面值
+	float mLightFarZ = 0.0f;								// 远平面值
+	XMFLOAT3 mLightPosW;									// 光源坐标
+	XMFLOAT4X4 mLightView = MathHelper::Identity4x4();		// 变换至灯光空间的矩阵
+	XMFLOAT4X4 mLightProj = MathHelper::Identity4x4();		// 从灯光空间转NDC空间 的矩阵
+	XMFLOAT4X4 mShadowTransform = MathHelper::Identity4x4();// 最终的灯光空间转纹理空间 的矩阵,即S = lightView * lightProj * T
 
 	float mLightRotationAngle = 0.0f;
 	XMFLOAT3 mBaseLightDirections[3] = {
@@ -156,7 +166,7 @@ private:
 		XMFLOAT3(-0.57735f, -0.57735f, 0.57735f),
 		XMFLOAT3(0.0f, -0.707f, -0.707f)
 	};
-	XMFLOAT3 mRotatedLightDirections[3];
+	XMFLOAT3 mRotatedLightDirections[3];// 有3个平行光
 
 	POINT mLastMousePos;
 };
@@ -211,8 +221,7 @@ bool ShadowMapApp::Initialize()
 
 	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
 
-	mShadowMap = std::make_unique<ShadowMap>(
-		md3dDevice.Get(), 2048, 2048);
+	mShadowMap = std::make_unique<ShadowMap>(md3dDevice.Get(), 2048, 2048);// 构建并自定义一张 ShadowMap型深度图资源
 
 	LoadTextures();
 	BuildRootSignature();
@@ -501,22 +510,29 @@ void ShadowMapApp::UpdateMaterialBuffer(const GameTimer& gt)
 	}
 }
 
+/// 计算单帧资源里的shadowTransofrm
 void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 {
-	// Only the first "main" light casts a shadow.
-	XMVECTOR lightDir = XMLoadFloat3(&mRotatedLightDirections[0]);
-	XMVECTOR lightPos = -2.0f * mSceneBounds.Radius * lightDir;
-	XMVECTOR targetPos = XMLoadFloat3(&mSceneBounds.Center);
+	/*
+	 先计算整个场景的包围球，然后构建出Light2Projection矩阵（灯光转NDC），
+	 继而算出NDC转纹理空间矩阵，将所有矩阵叠加相乘得到Light2Texcoord矩阵（灯光转纹理），
+	 因为没有齐次除法，所以NDC后可以直接乘以纹理矩阵，得到L2T矩阵。
+	 */
+
+	/* 主光才投射物体阴影*/
+	XMVECTOR lightDir = XMLoadFloat3(&mRotatedLightDirections[0]);// 第一个平行光的光向量
+	XMVECTOR lightPos = -2.0f * mSceneBounds.Radius * lightDir;   // 光源位置,调用处视为眼睛位置
+	XMVECTOR targetPos = XMLoadFloat3(&mSceneBounds.Center);	  // 场景包围球球心,调用处视为观察目标
 	XMVECTOR lightUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, lightUp);
+	XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, lightUp); /* 变换至灯光空间的矩阵; 从光源的角度来构建一个观察矩阵*/
 
-	XMStoreFloat3(&mLightPosW, lightPos);
-
-	// Transform bounding sphere to light space.
+	XMStoreFloat3(&mLightPosW, lightPos);// 暂存光源坐标
+	
+	/* 将包围球球心变换到光源空间*/
 	XMFLOAT3 sphereCenterLS;
 	XMStoreFloat3(&sphereCenterLS, XMVector3TransformCoord(targetPos, lightView));
 
-	// Ortho frustum in light space encloses scene.
+	// 位于光源空间中包围场景的正交投影视景体
 	float l = sphereCenterLS.x - mSceneBounds.Radius;
 	float b = sphereCenterLS.y - mSceneBounds.Radius;
 	float n = sphereCenterLS.z - mSceneBounds.Radius;
@@ -524,23 +540,31 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 	float t = sphereCenterLS.y + mSceneBounds.Radius;
 	float f = sphereCenterLS.z + mSceneBounds.Radius;
 
-	mLightNearZ = n;
-	mLightFarZ = f;
+	mLightNearZ = n;// 暂存近裁剪面距离
+	mLightFarZ = f; // 暂存远裁剪面距离
+
+	/* !!!//构建LightToProject矩阵（从灯光空间转NDC空间）*/
 	XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);
 
-	// Transform NDC space [-1,+1]^2 to texture space [0,1]^2
+	/* 构建NDCToTexture矩阵（NDC空间转纹理空间）
+	* 从[-1, 1]转到[0, 1]
+	 */ 
 	XMMATRIX T(
 		0.5f, 0.0f, 0.0f, 0.0f,
 		0.0f, -0.5f, 0.0f, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f,
 		0.5f, 0.5f, 0.0f, 1.0f);
 
+	/* 所有的都叠加在一起, 最终构建LightToTexture（灯光空间转纹理空间）*/
 	XMMATRIX S = lightView * lightProj * T;
+
+	/* 我们想要的效果就是把这三个矩阵统统注册到全局字段里*/
 	XMStoreFloat4x4(&mLightView, lightView);
 	XMStoreFloat4x4(&mLightProj, lightProj);
 	XMStoreFloat4x4(&mShadowTransform, S);
 }
 
+/// 帧数据里要做的事,将阴影图所需的PassCB数据传入GPU流水线。
 void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = mCamera.GetView();
@@ -551,7 +575,7 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
 	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
 
-	XMMATRIX shadowTransform = XMLoadFloat4x4(&mShadowTransform);
+	XMMATRIX shadowTransform = XMLoadFloat4x4(&mShadowTransform);// 持续获取灯光空间转纹理空间的矩阵
 
 	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
 	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
@@ -559,7 +583,7 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
 	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
 	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-	XMStoreFloat4x4(&mMainPassCB.ShadowTransform, XMMatrixTranspose(shadowTransform));
+	XMStoreFloat4x4(&mMainPassCB.ShadowTransform, XMMatrixTranspose(shadowTransform));// 传到0号常数缓存,也就是主PASS的 ShadowTransform里
 	mMainPassCB.EyePosW = mCamera.GetPosition3f();
 	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
@@ -574,15 +598,16 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
 	mMainPassCB.Lights[2].Direction = mRotatedLightDirections[2];
 	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
-
+	
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+/// 将阴影图所需的PassCB数据传入GPU流水线
 void ShadowMapApp::UpdateShadowPassCB(const GameTimer& gt)
 {
-	XMMATRIX view = XMLoadFloat4x4(&mLightView);
-	XMMATRIX proj = XMLoadFloat4x4(&mLightProj);
+	XMMATRIX view = XMLoadFloat4x4(&mLightView);// 加载 变换至灯光空间的矩阵
+	XMMATRIX proj = XMLoadFloat4x4(&mLightProj);// 加载从灯光空间转NDC空间的矩阵
 
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
@@ -592,18 +617,19 @@ void ShadowMapApp::UpdateShadowPassCB(const GameTimer& gt)
 	UINT w = mShadowMap->Width();
 	UINT h = mShadowMap->Height();
 
+	// 注意!!! mShadowPassCB也是PASSCB,只不过是1号,更新并做值, 填充它的各项属性
 	XMStoreFloat4x4(&mShadowPassCB.View, XMMatrixTranspose(view));
 	XMStoreFloat4x4(&mShadowPassCB.InvView, XMMatrixTranspose(invView));
 	XMStoreFloat4x4(&mShadowPassCB.Proj, XMMatrixTranspose(proj));
 	XMStoreFloat4x4(&mShadowPassCB.InvProj, XMMatrixTranspose(invProj));
 	XMStoreFloat4x4(&mShadowPassCB.ViewProj, XMMatrixTranspose(viewProj));
 	XMStoreFloat4x4(&mShadowPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-	mShadowPassCB.EyePosW = mLightPosW;
+	mShadowPassCB.EyePosW = mLightPosW;// 填充光源坐标
 	mShadowPassCB.RenderTargetSize = XMFLOAT2((float)w, (float)h);
 	mShadowPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / w, 1.0f / h);
 	mShadowPassCB.NearZ = mLightNearZ;
 	mShadowPassCB.FarZ = mLightFarZ;
-
+	// 将ShadowMap的PassCB存在1号索引（仅在Main之后, 举个例子,假如这里还有天空球,那么便设为7号）
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(1, mShadowPassCB);
 }
@@ -692,20 +718,15 @@ void ShadowMapApp::BuildRootSignature()
 
 void ShadowMapApp::BuildDescriptorHeaps()
 {
-	//
-	// Create the SRV heap.
-	//
+	/* 创建带14个句柄的SRV堆并从堆里提出SRV偏移句柄*/
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 14;
+	srvHeapDesc.NumDescriptors = 14;// 放14个纹理
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
-
-	//
-	// Fill out the heap with actual descriptors.
-	//
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
+	/* 全局贴图集里提出所有的2D纹理和CUBEMAP纹理*/
 	std::vector<ComPtr<ID3D12Resource>> tex2DList =
 	{
 		mTextures["bricksDiffuseMap"]->Resource,
@@ -715,25 +736,24 @@ void ShadowMapApp::BuildDescriptorHeaps()
 		mTextures["defaultDiffuseMap"]->Resource,
 		mTextures["defaultNormalMap"]->Resource
 	};
-
 	auto skyCubeMap = mTextures["skyCubeMap"]->Resource;
-
+	
+	/* 给每张 2D贴图都创建 SRV句柄*/
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-	for (UINT i = 0; i < (UINT)tex2DList.size(); ++i)
+	for (UINT i = 0; i < (UINT)tex2DList.size(); ++i)// 
 	{
 		srvDesc.Format = tex2DList[i]->GetDesc().Format;
 		srvDesc.Texture2D.MipLevels = tex2DList[i]->GetDesc().MipLevels;
 		md3dDevice->CreateShaderResourceView(tex2DList[i].Get(), &srvDesc, hDescriptor);
 
-		// next descriptor
 		hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
 	}
 
+	/* 顺便也给 CUBEMAP贴图 创建SRV句柄*/
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 	srvDesc.TextureCube.MostDetailedMip = 0;
 	srvDesc.TextureCube.MipLevels = skyCubeMap->GetDesc().MipLevels;
@@ -741,23 +761,25 @@ void ShadowMapApp::BuildDescriptorHeaps()
 	srvDesc.Format = skyCubeMap->GetDesc().Format;
 	md3dDevice->CreateShaderResourceView(skyCubeMap.Get(), &srvDesc, hDescriptor);
 
-	mSkyTexHeapIndex = (UINT)tex2DList.size();
-	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
+	/* 暂存cubemap和shadowmap在堆中的SRV索引*/
+	mSkyTexHeapIndex = (UINT)tex2DList.size(); // 在此项目是6
+	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;// 在此项目是7
 
 	mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
 	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
 
+	/* 从SRV堆里提出CPU\GPU端的首句柄，从DSV堆里也提出首句柄，作偏移参数用*/
 	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 
 
-	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
-	mNullSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
-
+	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart/*堆中首句柄*/, mNullCubeSrvIndex/*堆中序数*/, mCbvSrvUavDescriptorSize/*SRV邻接值*/);
+	mNullSrv     = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
 	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+	
+	//SRV堆中,ShadowMap的SRV句柄，继续偏移一个SRV; 并创建出阴影图实例nullSrv的句柄
 	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
-
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	srvDesc.Texture2D.MostDetailedMip = 0;
@@ -765,10 +787,11 @@ void ShadowMapApp::BuildDescriptorHeaps()
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
 
+	/* 在总的SRV堆和DSV堆中插入深度图(即mShadowMap)的SRV句柄和DSV句柄，注意地址偏移的数量*/
 	mShadowMap->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),// 深度图的SRV在堆中地址（CPU上备份）
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),// 深度图的SRV在堆中地址（GPU上）
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));						  // 深度图的DSV地址,偏移了1个单位
 }
 
 void ShadowMapApp::BuildShadersAndInputLayout()
