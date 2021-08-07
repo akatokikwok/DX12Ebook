@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // Common.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -31,7 +31,7 @@ struct MaterialData
 };
 
 TextureCube gCubeMap : register(t0);
-Texture2D gShadowMap : register(t1);
+Texture2D gShadowMap : register(t1);// 阴影图(也就是场景的深度图)
 
 // An array of textures, which is only supported in shader model 5.1+.  Unlike Texture2DArray, the textures
 // in this array can be different sizes and formats, making it more flexible than texture arrays.
@@ -48,7 +48,7 @@ SamplerState gsamLinearWrap       : register(s2);
 SamplerState gsamLinearClamp      : register(s3);
 SamplerState gsamAnisotropicWrap  : register(s4);
 SamplerState gsamAnisotropicClamp : register(s5);
-SamplerComparisonState gsamShadow : register(s6);
+SamplerComparisonState gsamShadow : register(s6); // 做PCF的采样需要使用“比较采样器”，这使硬件能够执行阴影图的比较测试，且需要在过滤采样结果之前完成
 
 // Constant data that varies per frame.
 cbuffer cbPerObject : register(b0)
@@ -108,25 +108,25 @@ float3 NormalSampleToWorldSpace(float3 normalMapSample, float3 unitNormalW, floa
 	return bumpedNormalW;
 }
 
-//---------------------------------------------------------------------------------------
-// PCF for shadow mapping.
-//---------------------------------------------------------------------------------------
-
-float CalcShadowFactor(float4 shadowPosH)
+/// 为阴影图构建PCF,返回阴影因子
+float CalcShadowFactor(float4 shadowPosH/*接受外部1个顶点*/)
 {
-	// Complete projection by doing division by w.
+	// 将处于齐次裁剪空间未执行齐次除法的顶点变换到NDC空间（如果是正交投影，则W=1）
 	shadowPosH.xyz /= shadowPosH.w;
 
-	// Depth in NDC space.
+	// 获取 处于NDC空间中的深度值
 	float depth = shadowPosH.z;
 
+	/* 读取阴影图--gShadowMap的宽高及mip级数*/
 	uint width, height, numMips;
 	gShadowMap.GetDimensions(0, width, height, numMips);
 
-	// Texel size.
+	// 纹素尺寸
 	float dx = 1.0f / (float)width;
 
+	/* 单次PCF预存值*/
 	float percentLit = 0.0f;
+	/* 使用9核, 3排3列*/
 	const float2 offsets[9] =
 	{
 		float2(-dx,  -dx), float2(0.0f,  -dx), float2(dx,  -dx),
@@ -134,13 +134,19 @@ float CalcShadowFactor(float4 shadowPosH)
 		float2(-dx,  +dx), float2(0.0f,  +dx), float2(dx,  +dx)
 	};
 
+	/* PCF（类似均值模糊算法）执行9次4-tap PCF*/
 	[unroll]
 	for (int i = 0; i < 9; ++i)
 	{
-		percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow,
-			shadowPosH.xy + offsets[i], depth).r;
+		// 每个核都执行tap4 PCF计算, DX12可以调用SampleCmpLevelZero函数来执行PCF，并最大程度的优化采样过程。
+		// 做PCF的采样需要使用“比较采样器”，这使硬件能够执行阴影图的比较测试，且需要在过滤采样结果之前完成
+		percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow,shadowPosH.xy + offsets[i], depth).r;
+		
+		// 单独测试一下PCF，看下软硬阴影的区别。将PCF计算中累加的offsets数组改成4号元素，即中间的0号，这样相当于没有做PCF,会发现阴影边缘有明显的锯齿
+		// percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow,shadowPosH.xy + offsets[4], depth).r;
 	}
-
+	
+	/* 将9次PCF取均值*/
 	return percentLit / 9.0f;
 }
 

@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // LightingUtil.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //
 // Contains API for shader lighting.
@@ -144,8 +144,10 @@ float4 ComputeLighting(Light gLights[MaxLights], Material mat,
     int i = 0;
 
 #if (NUM_DIR_LIGHTS > 0)
+    // 将阴影和光照混合，阴影因子乘入即可。注意，我们只让主光产生阴影，所以这里的shadowFactor数组只有一个0号元素。
     for(i = 0; i < NUM_DIR_LIGHTS; ++i)
     {
+        //多个平行光的光照叠加（有阴影）
         result += shadowFactor[i] * ComputeDirectionalLight(gLights[i], mat, normal, toEye);
     }
 #endif

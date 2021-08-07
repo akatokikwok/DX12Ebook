@@ -519,7 +519,7 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 	 因为没有齐次除法，所以NDC后可以直接乘以纹理矩阵，得到L2T矩阵。
 	 */
 
-	/* 主光才投射物体阴影*/
+	 /* 主光才投射物体阴影*/
 	XMVECTOR lightDir = XMLoadFloat3(&mRotatedLightDirections[0]);// 第一个平行光的光向量
 	XMVECTOR lightPos = -2.0f * mSceneBounds.Radius * lightDir;   // 光源位置,调用处视为眼睛位置
 	XMVECTOR targetPos = XMLoadFloat3(&mSceneBounds.Center);	  // 场景包围球球心,调用处视为观察目标
@@ -527,7 +527,7 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 	XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, lightUp); /* 变换至灯光空间的矩阵; 从光源的角度来构建一个观察矩阵*/
 
 	XMStoreFloat3(&mLightPosW, lightPos);// 暂存光源坐标
-	
+
 	/* 将包围球球心变换到光源空间*/
 	XMFLOAT3 sphereCenterLS;
 	XMStoreFloat3(&sphereCenterLS, XMVector3TransformCoord(targetPos, lightView));
@@ -548,7 +548,7 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 
 	/* 构建NDCToTexture矩阵（NDC空间转纹理空间）
 	* 从[-1, 1]转到[0, 1]
-	 */ 
+	 */
 	XMMATRIX T(
 		0.5f, 0.0f, 0.0f, 0.0f,
 		0.0f, -0.5f, 0.0f, 0.0f,
@@ -574,7 +574,7 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
 	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
 	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
-
+	/* 获取灯光空间转纹理空间的矩阵, 用于阴影计算*/
 	XMMATRIX shadowTransform = XMLoadFloat4x4(&mShadowTransform);// 持续获取灯光空间转纹理空间的矩阵
 
 	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
@@ -583,7 +583,12 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
 	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
 	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+	/* 将ShadowTransform传入流水线
+	 * 注意我们要将其传入mainPassCB，而不是ShadowMapPassCB，
+	 * 因为阴影是在绘制主场景时使用阴影图计算的，而阴影图本体绘制才是使用的ShadowMapPassCB 
+	 */
 	XMStoreFloat4x4(&mMainPassCB.ShadowTransform, XMMatrixTranspose(shadowTransform));// 传到0号常数缓存,也就是主PASS的 ShadowTransform里
+	
 	mMainPassCB.EyePosW = mCamera.GetPosition3f();
 	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
@@ -598,8 +603,9 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
 	mMainPassCB.Lights[2].Direction = mRotatedLightDirections[2];
 	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
-	
+
 	auto currPassCB = mCurrFrameResource->PassCB.get();
+	// 主PASS是0号,ShdaowPass是1号,类里设置了共2个PassConstants实例; 将ShadowMap的PassCB存在1号索引（仅在Main之后)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
@@ -737,7 +743,7 @@ void ShadowMapApp::BuildDescriptorHeaps()
 		mTextures["defaultNormalMap"]->Resource
 	};
 	auto skyCubeMap = mTextures["skyCubeMap"]->Resource;
-	
+
 	/* 给每张 2D贴图都创建 SRV句柄*/
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -775,9 +781,9 @@ void ShadowMapApp::BuildDescriptorHeaps()
 
 
 	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart/*堆中首句柄*/, mNullCubeSrvIndex/*堆中序数*/, mCbvSrvUavDescriptorSize/*SRV邻接值*/);
-	mNullSrv     = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
+	mNullSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
 	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
-	
+
 	//SRV堆中,ShadowMap的SRV句柄，继续偏移一个SRV; 并创建出阴影图实例nullSrv的句柄
 	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -1116,12 +1122,13 @@ void ShadowMapApp::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
 	//
-	// PSO for shadow map pass.
+	// 阴影图PASS 专用PSO
 	//
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = opaquePsoDesc;
-	smapPsoDesc.RasterizerState.DepthBias = 100000;
-	smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
-	smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
+	/* 深度偏移相关设置, 公式详见603*/
+	smapPsoDesc.RasterizerState.DepthBias = 100000;//固定的偏移量
+	smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;// 允许的最大深度偏移量,过大的倾斜会导致斜率偏移量过大,造成彼得潘失真
+	smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;//根据多边形斜率来控制偏移的缩放因子
 	smapPsoDesc.pRootSignature = mRootSignature.Get();
 	smapPsoDesc.VS =
 	{
@@ -1133,14 +1140,14 @@ void ShadowMapApp::BuildPSOs()
 		reinterpret_cast<BYTE*>(mShaders["shadowOpaquePS"]->GetBufferPointer()),
 		mShaders["shadowOpaquePS"]->GetBufferSize()
 	};
-
-	// Shadow map pass does not have a render target.
+	/* !!!阴影图的渲染过程无需涉及渲染目标*/
 	smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
-	smapPsoDesc.NumRenderTargets = 0;
+	smapPsoDesc.NumRenderTargets = 0;// 没有渲染目标，禁止颜色输出
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mPSOs["shadow_opaque"])));
 
 	//
 	// PSO for debug layer.
+	// 我们需要单独一个shader来将采样阴影图并将其渲染到面片上，所以新建一个Debug的PSO
 	//
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC debugPsoDesc = opaquePsoDesc;
 	debugPsoDesc.pRootSignature = mRootSignature.Get();
@@ -1262,6 +1269,7 @@ void ShadowMapApp::BuildRenderItems()
 	mRitemLayer[(int)RenderLayer::Sky].push_back(skyRitem.get());
 	mAllRitems.push_back(std::move(skyRitem));
 
+	/* 此次案例我们将绘制好的shadowMap显示在屏幕上*/
 	auto quadRitem = std::make_unique<RenderItem>();
 	quadRitem->World = MathHelper::Identity4x4();
 	quadRitem->TexTransform = MathHelper::Identity4x4();
@@ -1272,8 +1280,7 @@ void ShadowMapApp::BuildRenderItems()
 	quadRitem->IndexCount = quadRitem->Geo->DrawArgs["quad"].IndexCount;
 	quadRitem->StartIndexLocation = quadRitem->Geo->DrawArgs["quad"].StartIndexLocation;
 	quadRitem->BaseVertexLocation = quadRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
-
-	mRitemLayer[(int)RenderLayer::Debug].push_back(quadRitem.get());
+	mRitemLayer[(int)RenderLayer::Debug].push_back(quadRitem.get());//其分到Debug层中
 	mAllRitems.push_back(std::move(quadRitem));
 
 	auto boxRitem = std::make_unique<RenderItem>();
@@ -1408,36 +1415,37 @@ void ShadowMapApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std
 	}
 }
 
+/// 将场景深度 绘制进 阴影图里, 阴影图PassCB GPU地址为：1个场景PassCB之后
 void ShadowMapApp::DrawSceneToShadowMap()
 {
+	/* 设置视口和裁剪矩形*/
 	mCommandList->RSSetViewports(1, &mShadowMap->Viewport());
 	mCommandList->RSSetScissorRects(1, &mShadowMap->ScissorRect());
 
-	// Change to DEPTH_WRITE.
+	/* 将深度图切换为写状态(渲染深度信息)*/
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
 		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));
-
+	/* 255对齐PASSCB*/
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
-	// Clear the back buffer and depth buffer.
+	/* 清空深度模板缓存*/
 	mCommandList->ClearDepthStencilView(mShadowMap->Dsv(),
 		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-	// Set null render target because we are only going to draw to
-	// depth buffer.  Setting a null render target will disable color writes.
-	// Note the active PSO also must specify a render target count of 0.
-	mCommandList->OMSetRenderTargets(0, nullptr, false, &mShadowMap->Dsv());
+	/* 将RT 设置为空, 禁用向后台缓存写入像素颜色*/
+	mCommandList->OMSetRenderTargets(0/*RT数*/, nullptr, false, &mShadowMap->Dsv());
 
-	// Bind the pass constant buffer for the shadow map pass.
-	auto passCB = mCurrFrameResource->PassCB->Resource();
+	/* 为阴影图渲染绑定所需要的常量缓存区*/
+	auto passCB = mCurrFrameResource->PassCB->Resource();// 得到当前帧的PASSCB的裸指针
+	/* !!!// 阴影图PassCB GPU地址为：1个场景PassCB之后*/
 	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
-	mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);// PASSCB 管线上设在1号
 
+	/* 切换PSO为"非透明阴影PSO" 并绘制层级为"非透明"的渲染项*/
 	mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
-
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
-	// Change back to GENERIC_READ so we can read the texture in a shader.
+	/* 将阴影图设置为读, 允许在shader里采样阴影图*/
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
 		D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));
 }
@@ -1493,15 +1501,19 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> ShadowMapApp::GetStaticSamplers
 		0.0f,                              // mipLODBias
 		8);                                // maxAnisotropy
 
+	/* 做PCF的采样需要使用“比较采样器”，这使硬件能够执行阴影图的比较测试，且需要在过滤采样结果之前完成
+	 * 使用D3D12_COMPARISON_FUNC_LESS_EQUAL来执行比较操作
+	 * PCF技术只需在阴影边缘处执行，因为阴影内部是不渐变的，无需使用昂贵的PCF, 庆幸的是这些工作DX12都为我们做好了
+	 */
 	const CD3DX12_STATIC_SAMPLER_DESC shadow(
 		6, // shaderRegister
 		D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT, // filter
-		D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressU
-		D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressV
-		D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressW
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressU U方向上的寻址模式为BORDER
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressV V方向上的寻址模式为BORDER
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressW W方向上的寻址模式为BORDER
 		0.0f,                               // mipLODBias
 		16,                                 // maxAnisotropy
-		D3D12_COMPARISON_FUNC_LESS_EQUAL,
+		D3D12_COMPARISON_FUNC_LESS_EQUAL,   // 执行阴影图的比较测试
 		D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK);
 
 	return {

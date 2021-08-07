@@ -1,5 +1,5 @@
-//***************************************************************************************
-// Default.hlsl by Frank Luna (C) 2015 All Rights Reserved.
+﻿//***************************************************************************************
+// 绘制shadowMap的shader很简单，因为不输出颜色，所以像素着色器为空，顶点着色器只需做基本的空间变换即可。
 //***************************************************************************************
 
 // Defaults for number of lights.
@@ -47,19 +47,20 @@ VertexOut VS(VertexIn vin)
 	float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
 	vout.PosW = posW.xyz;
 
-	// Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
+	// 只做均匀缩放，所以可以不使用逆转置矩阵
 	vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
-
+	// 将顶点切线从物体空间转至世界空间
 	vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
 
 	// Transform to homogeneous clip space.
 	vout.PosH = mul(posW, gViewProj);
 
-	// Output vertex attributes for interpolation across triangle.
+	// 给顶点三角形属性插值
 	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
 	vout.TexC = mul(texC, matData.MatTransform).xy;
 
 	// Generate projective tex-coords to project shadow map onto scene.
+	// 把顶点从世界空间变换到纹理空间,通过投影取得场景阴影图的效果
 	vout.ShadowPosH = mul(posW, gShadowTransform);
 
 	return vout;

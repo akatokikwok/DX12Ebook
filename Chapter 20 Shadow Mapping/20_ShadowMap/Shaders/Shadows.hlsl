@@ -1,5 +1,6 @@
-//***************************************************************************************
-// Shadows.hlsl by Frank Luna (C) 2015 All Rights Reserved.
+﻿//***************************************************************************************
+// Shadows.hlsl这个是阴影图的shader
+// 绘制shadowMap的shader很简单，因为不输出颜色，所以像素着色器为空，顶点着色器只需做基本的空间变换即可。
 //***************************************************************************************
 
 // Include common HLSL code.
@@ -21,15 +22,13 @@ VertexOut VS(VertexIn vin)
 {
 	VertexOut vout = (VertexOut)0.0f;
 
-	MaterialData matData = gMaterialData[gMaterialIndex];
+	MaterialData matData = gMaterialData[gMaterialIndex];// 取出对应序数的结构体材质
 
-	// Transform to world space.
+	/* 先把顶点变换到齐次裁剪空间*/
 	float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
-
-	// Transform to homogeneous clip space.
 	vout.PosH = mul(posW, gViewProj);
 
-	// Output vertex attributes for interpolation across triangle.
+	/* 经过三角形差值输出顶点属性*/
 	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
 	vout.TexC = mul(texC, matData.MatTransform).xy;
 
@@ -41,12 +40,12 @@ VertexOut VS(VertexIn vin)
 // texture can use a NULL pixel shader for depth pass.
 void PS(VertexOut pin)
 {
-	// Fetch the material data.
-	MaterialData matData = gMaterialData[gMaterialIndex];
+	/* 先取出特定的结构里材质里的 属性(这里是漫反射率, 2D漫反射贴图)*/
+	MaterialData matData = gMaterialData[gMaterialIndex];// 取出对应序数的结构体材质
 	float4 diffuseAlbedo = matData.DiffuseAlbedo;
 	uint diffuseMapIndex = matData.DiffuseMapIndex;
 
-	// Dynamically look up the texture in the array.
+	// 各向异性采样2D纹理数组以 动态地查找漫反射纹理,并返回最终的颜色赋给漫反射率
 	diffuseAlbedo *= gTextureMaps[diffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
 
 #ifdef ALPHA_TEST

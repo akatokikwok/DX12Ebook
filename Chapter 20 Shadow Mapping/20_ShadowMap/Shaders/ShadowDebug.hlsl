@@ -1,5 +1,5 @@
-//***************************************************************************************
-// ShadowDebug.hlsl by Frank Luna (C) 2015 All Rights Reserved.
+﻿//***************************************************************************************
+// ShadowDebug.hlsl:我们需要单独一个shader来将采样阴影图并将其渲染到面片上，所以新建一个DebugShader
 //***************************************************************************************
 
 // Include common HLSL code.
@@ -21,7 +21,7 @@ VertexOut VS(VertexIn vin)
 {
 	VertexOut vout = (VertexOut)0.0f;
 
-	// Already in homogeneous clip space.
+	// 此时已经处于齐次裁剪空间了
 	vout.PosH = float4(vin.PosL, 1.0f);
 
 	vout.TexC = vin.TexC;
@@ -31,7 +31,7 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-	return float4(gShadowMap.Sample(gsamLinearWrap, pin.TexC).rrr, 1.0f);
+	return float4(gShadowMap.Sample(gsamLinearWrap, pin.TexC).rrr, 1.0f); // 在shader中线性采样阴影图，并返回最终颜色
 }
 
 
