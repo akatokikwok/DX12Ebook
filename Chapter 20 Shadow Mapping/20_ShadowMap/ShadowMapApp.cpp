@@ -585,10 +585,10 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
 	/* 将ShadowTransform传入流水线
 	 * 注意我们要将其传入mainPassCB，而不是ShadowMapPassCB，
-	 * 因为阴影是在绘制主场景时使用阴影图计算的，而阴影图本体绘制才是使用的ShadowMapPassCB 
+	 * 因为阴影是在绘制主场景时使用阴影图计算的，而阴影图本体绘制才是使用的ShadowMapPassCB
 	 */
 	XMStoreFloat4x4(&mMainPassCB.ShadowTransform, XMMatrixTranspose(shadowTransform));// 传到0号常数缓存,也就是主PASS的 ShadowTransform里
-	
+
 	mMainPassCB.EyePosW = mCamera.GetPosition3f();
 	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
@@ -837,7 +837,7 @@ void ShadowMapApp::BuildShapeGeometry()
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
-	GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
+	GeometryGenerator::MeshData quad = geoGen.CreateQuad(-0.5f, 0.0f, 0.5f, 0.5f, 0.0f);// 此处影响生成的QUAD处于屏幕的位置
 
 	//
 	// We are concatenating all the geometry into one big vertex/index buffer.  So
