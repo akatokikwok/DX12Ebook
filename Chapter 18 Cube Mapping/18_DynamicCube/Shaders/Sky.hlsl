@@ -1,5 +1,5 @@
 //=============================================================================
-// Sky.fx by Frank Luna (C) 2011 All Rights Reserved.
+// Sky.fx by Frank Luna (C) 2011 All Rights Reserved. 
 //=============================================================================
 
 // Include common HLSL code.

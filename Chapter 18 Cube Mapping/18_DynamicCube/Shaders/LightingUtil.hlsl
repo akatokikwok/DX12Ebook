@@ -1,5 +1,5 @@
 //***************************************************************************************
-// LightingUtil.hlsl by Frank Luna (C) 2015 All Rights Reserved.
+// LightingUtil.hlsl by Frank Luna (C) 2015 All Rights Reserved. 
 //
 // Contains API for shader lighting.
 //***************************************************************************************
