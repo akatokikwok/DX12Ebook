@@ -56,7 +56,7 @@ cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
     float4x4 gTexTransform;
-    uint gMaterialIndex;
+    uint gMaterialIndex;// 每个物体都有自己的材质索引
     uint gObjPad0;
     uint gObjPad1;
     uint gObjPad2;
