@@ -1,13 +1,15 @@
 //=============================================================================
-// Ssao.hlsl by Frank Luna (C) 2015 All Rights Reserved.
+// Ssao.hlsl 在布置好观察空间法线和场景深度后,禁用深度缓存,并在每个像素处调用SSAO的像素着色器绘制一个全屏四边形,该shader生成一个对应的环境光可及率数据
+// 此过程生成的纹理图称之为 SSAP Map
+// 出于性能考量,仅用深度缓存的1/2宽高来渲染SSAO图
 //=============================================================================
 
 cbuffer cbSsao : register(b0)
 {
-    float4x4 gProj;
+    float4x4 gProj; // 投影矩阵, 由于其具有z_ndc = A + B / viewZ的特效,可以被拿来做一些算法设计
     float4x4 gInvProj;
-    float4x4 gProjTex;
-    float4 gOffsetVectors[14];
+    float4x4 gProjTex; // 投影q点用的投影纹理变换矩阵
+    float4 gOffsetVectors[14];// 8角点+6面中心点,以此得出来的14个随机分布向量
 
     // For SsaoBlur.hlsl
     float4 gBlurWeights[3];
@@ -27,9 +29,9 @@ cbuffer cbRootConstants : register(b1)
 };
  
 // Nonnumeric values cannot be added to a cbuffer.
-Texture2D gNormalMap : register(t0);
-Texture2D gDepthMap : register(t1);
-Texture2D gRandomVecMap : register(t2);
+Texture2D gNormalMap : register(t0);    // 本shader持有一张2D法线图纹理
+Texture2D gDepthMap : register(t1);		// 本shader持有一张2D深度图纹理
+Texture2D gRandomVecMap : register(t2); // 执行遮蔽检测用的多个随机向量的纹理
 
 SamplerState gsamPointClamp : register(s0);
 SamplerState gsamLinearClamp : register(s1);
@@ -37,7 +39,9 @@ SamplerState gsamDepthMap : register(s2);
 SamplerState gsamLinearWrap : register(s3);
 
 static const int gSampleCount = 14;
- 
+
+// 利用构成quad的6个顶点进行绘制调用
+// 可以利用投影矩阵的逆矩阵把位于NDC空间的四边形的corner point变换到近裁剪面窗口上
 static const float2 gTexCoords[6] =
 {
     float2(0.0f, 1.0f),
@@ -50,37 +54,35 @@ static const float2 gTexCoords[6] =
  
 struct VertexOut
 {
-    float4 PosH : SV_POSITION;
-    float3 PosV : POSITION;
+    float4 PosH : SV_POSITION;// PosH表示原已处在齐次裁剪空间的点
+    float3 PosV : POSITION;// PosV表示的是被投影逆矩阵变换到近裁剪面上的点
     float2 TexC : TEXCOORD0;
 };
 
+/* 利用构成quad的6个顶点进行绘制调用*/
 VertexOut VS(uint vid : SV_VertexID)
 {
     VertexOut vout;
 
-    vout.TexC = gTexCoords[vid];
+    vout.TexC = gTexCoords[vid];// quad上对应顶点的TexC
 
-    // Quad covering screen in NDC space.
+    // 将打在屏幕上的全屏四边形 从齐次裁剪空间 变换到 NDC空间
     vout.PosH = float4(2.0f * vout.TexC.x - 1.0f, 1.0f - 2.0f * vout.TexC.y, 0.0f, 1.0f);
  
-    // Transform quad corners to view space near plane.
-    float4 ph = mul(vout.PosH, gInvProj);
+    // 将四边形的各角点变换至View Space的近裁剪面
+    float4 ph = mul(vout.PosH, gInvProj); // 可以利用投影矩阵的逆矩阵把位于NDC空间的四边形的corner point变换到近裁剪面窗口上
     vout.PosV = ph.xyz / ph.w;
 
     return vout;
 }
 
-// Determines how much the sample point q occludes the point p as a function
-// of distZ.
-float OcclusionFunction(float distZ)
+// 根据深度差计算遮蔽值; 目标点p被遮蔽点r遮挡严重程度的逻辑封装成一个函数
+float OcclusionFunction(float distZ)//入参是目标点p和遮蔽点r的深度差
 {
 	//
-	// If depth(q) is "behind" depth(p), then q cannot occlude p.  Moreover, if 
-	// depth(q) and depth(p) are sufficiently close, then we also assume q cannot
-	// occlude p because q needs to be in front of p by Epsilon to occlude p.
-	//
-	// We use the following function to determine the occlusion.  
+	// 如果q深度处在p深度之后(即超出半球范围),则表明遮蔽点q无法遮挡点p
+	// 如果q太靠近p,则表明q也不能遮挡p,原因是目前仅承认 当且仅当q位于点p之前并根据用户自定义的Epsilon值才能确定点q对点p的遮蔽程度
+	// 通过下列函数来确定遮蔽值
 	// 
 	//
 	//       1.0     -------------\
@@ -94,106 +96,97 @@ float OcclusionFunction(float distZ)
 	//        0     Eps          z0            z1        
 	//
 	
-    float occlusion = 0.0f;
-    if (distZ > gSurfaceEpsilon)
+    float occlusion = 0.0f;// 遮蔽值
+    if (distZ > gSurfaceEpsilon)// 目标点p和遮蔽点q的深度差过大,大于用户自定义的阈值的话
     {
         float fadeLength = gOcclusionFadeEnd - gOcclusionFadeStart;
 		
-		// Linearly decrease occlusion from 1 to 0 as distZ goes 
-		// from gOcclusionFadeStart to gOcclusionFadeEnd.	
+		// 随着深度差由gOcclusionFadeStart愈发趋近于gOcclusionFadeEnd,那么根据函数图像可以得出遮蔽值会线性衰减,由1衰减到0
         occlusion = saturate((gOcclusionFadeEnd - distZ) / fadeLength);
     }
 	
     return occlusion;
 }
 
+/* 思路介绍:
+ * 由于与v同起点共方向的射线也经过点P,所以必定存在一个比例t,满足P=tv,P和V的深度也满足这个比例,所以推导出 P == (Pz / Vz) v
+ * 供给像素着色器用并负责"重建观察空间位置"的函数逻辑如下
+ */
 float NdcDepthToViewDepth(float z_ndc)
 {
-    // z_ndc = A + B/viewZ, where gProj[2,2]=A and gProj[3,2]=B.
+	/* 我们可以执行 把z坐标从NDC空间变换至View Space的逆运算,由于存在有" z_ndc = A + B / viewZ, 且其中gProj[2][2] == A、gProj[3][2] == B",因此可以借助这个小技巧等式来执行推算*/
     float viewZ = gProj[3][2] / (z_ndc - gProj[2][2]);
     return viewZ;
 }
  
 float4 PS(VertexOut pin) : SV_Target
 {
-	// p -- the point we are computing the ambient occlusion for.
-	// n -- normal vector at p.
-	// q -- a random offset from p.
-	// r -- a potential occluder that might occlude p.
+	// p -- 我们要计算的遮蔽目标点 p
+	// n -- 点p处的法向量 n
+	// q -- 随机偏离于点p的一点 q
+	// r -- 有概率遮挡住p的某个点 r
 
-	// Get viewspace normal and z-coord of this pixel.  
-    float3 n = normalize(gNormalMap.SampleLevel(gsamPointClamp, pin.TexC, 0.0f).xyz);
-    float pz = gDepthMap.SampleLevel(gsamDepthMap, pin.TexC, 0.0f).r;
-    pz = NdcDepthToViewDepth(pz);
+	
+	/* 先拿取此像素位于 ViewSpace里的法线 以及 深度坐标*/
+    float3 n = normalize(gNormalMap.SampleLevel(gsamPointClamp, pin.TexC, 0.0f).xyz);// 采样法线贴图以获取像素的法线值
+    float pz = gDepthMap.SampleLevel(gsamDepthMap, pin.TexC, 0.0f).r;				 // 先从深度图里获取该像素在NDC空间里的z坐标(即深度值)
+    pz = NdcDepthToViewDepth(pz);													 // 再把深度值pz 重建到此像素点在 ViewSpace里的深度
 
-	//
-	// Reconstruct full view space position (x,y,z).
-	// Find t such that p = t*pin.PosV.
-	// p.z = t*pin.PosV.z
-	// t = p.z / pin.PosV.z
-	//
+	/* 由于与v同起点共方向的射线也经过点P,所以必定存在一个比例t,满足P=tv,P和V的深度也满足这个比例,所以推导出 P == (Pz / Vz) v
+	// 此处的意思是 借助"此前已设计好的深度值pz" 重建此像素点在 ViewSpace的位置 */
     float3 p = (pz / pin.PosV.z) * pin.PosV;
 	
-	// Extract random vector and map from [0,1] --> [-1, +1].
+	// 从 [0,1] 映射到--> [-1, +1].拿到随机向量
     float3 randVec = 2.0f * gRandomVecMap.SampleLevel(gsamLinearWrap, 4.0f * pin.TexC, 0.0f).rgb - 1.0f;
 
     float occlusionSum = 0.0f;
 	
-	// Sample neighboring points about p in the hemisphere oriented by n.
-    for (int i = 0; i < gSampleCount; ++i)
+	// 在以p为中心的半球内,根据法线n对p周围的点执行采样
+	// 像素着色器里执行一次随机向量构建的纹理图并使用这个纹理图来对14个均匀分布的向量执行反射,其最终结果就是获得14个均匀分布的随机向量
+    for (int i = 0; i < gSampleCount; ++i)// 采样14次,计算14次
     {
-		// Are offset vectors are fixed and uniformly distributed (so that our offset vectors
-		// do not clump in the same direction).  If we reflect them about a random vector
-		// then we get a random uniform distribution of offset vectors.
+		// 偏移向量都是固定切均匀分布
+		// 如果尝试把它们关于一个随机向量进行反射,得到的也肯定是一组均匀分布的随机偏移向量
         float3 offset = reflect(gOffsetVectors[i].xyz, randVec);
 	
-		// Flip offset vector if it is behind the plane defined by (p, n).
+		// 如果此偏移向量恰好不幸位于(p,n)所定义的平面,则不是我们想要的,就翻转它
         float flip = sign(dot(offset, n));
 		
-		// Sample a point near p within the occlusion radius.
+		// 在遮蔽半径内采集最靠近点p的那个点q
         float3 q = p + flip * gOcclusionRadius * offset;
 		
-		// Project q and generate projective tex-coords.  
+		// 投影点q 并生成相应的投影纹理坐标 
         float4 projQ = mul(float4(q, 1.0f), gProjTex);
         projQ /= projQ.w;
 
-		// Find the nearest depth value along the ray from the eye to q (this is not
-		// the depth of q, as q is just an arbitrary point near p and might
-		// occupy empty space).  To find the nearest depth we look it up in the depthmap.
+		// 沿着从观察点到q的光线方向,查找离观察点最近的深度值(它未必是q的深度值,因为q只是接近于p的任意一点,q处有概率是空气而非实体)
+		// 为此,就需要查看那个点在深度图中的深度值
+        float rz = gDepthMap.SampleLevel(gsamDepthMap, projQ.xy, 0.0f).r;// 结合点q的投影纹理坐标, 采样深度图取得符合条件的点r深度,点r此时还处在NDC空间
+        rz = NdcDepthToViewDepth(rz);// 深度值Rz从NDC空间变换到观察空间
 
-        float rz = gDepthMap.SampleLevel(gsamDepthMap, projQ.xy, 0.0f).r;
-        rz = NdcDepthToViewDepth(rz);
-
-		// Reconstruct full view space position r = (rx,ry,rz).  We know r
-		// lies on the ray of q, so there exists a t such that r = t*q.
+		// 效仿此前的p的处理过程,重建位于观察空间的位置坐标点 r=(rx, ry, rz).
+		// 已知,点r处在眼睛到点q的光径上,因此也就存在某个比例t满足 r == t * q(float3型)
 		// r.z = t*q.z ==> t = r.z / q.z
 
         float3 r = (rz / q.z) * q;
 		
 		//
-		// Test whether r occludes p.
-		//   * The product dot(n, normalize(r - p)) measures how much in front
-		//     of the plane(p,n) the occluder point r is.  The more in front it is, the
-		//     more occlusion weight we give it.  This also prevents self shadowing where 
-		//     a point r on an angled plane (p,n) could give a false occlusion since they
-		//     have different depth values with respect to the eye.
-		//   * The weight of the occlusion is scaled based on how far the occluder is from
-		//     the point we are computing the occlusion of.  If the occluder r is far away
-		//     from p, then it does not occlude it.
-		// 
-		
-        float distZ = p.z - r.z;
-        float dp = max(dot(n, normalize(r - p)), 0.0f);
+		// 测试点r是否遮挡着点p
+		// 点积dot( n, normalize(r-p) )表示是遮蔽点r距离平面(p,n)前侧的距离,
+		// 越趋近于此平面前侧,就给设定一个更大的遮蔽权重,(也有额外的好处,减缓倾斜面(p,n)上的某点r的自阴影诱发出来的错误遮蔽值)
+		// 遮蔽权重依赖于 遮蔽点r和其目标点p的距离,距离过大则视作点r完全不会遮蔽点p
+        float distZ = p.z - r.z;// p点和r点的深度差
+        float dp = max(dot(n, normalize(r - p)), 0.0f); // 遮蔽点r距离平面(p,n)的距离
 
-        float occlusion = dp * OcclusionFunction(distZ);
+        float occlusion = dp * OcclusionFunction(distZ);// 利用深度差计算出新的遮蔽值
 
-        occlusionSum += occlusion;
+        occlusionSum += occlusion;// 叠加遮蔽值
     }
 	
-    occlusionSum /= gSampleCount;
+    occlusionSum /= gSampleCount;// 除以14次计算平均遮蔽值
 	
-    float access = 1.0f - occlusionSum;
+    float access = 1.0f - occlusionSum;// 可及率
 
-	// Sharpen the contrast of the SSAO map to make the SSAO affect more dramatic.
-    return saturate(pow(access, 6.0f));
+	// 锐化增加SSAO map的对比度,让SSAO图更加容易被识别
+    return saturate(pow(access, 10.0f));
 }

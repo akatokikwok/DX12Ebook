@@ -424,12 +424,10 @@ void Ssao::BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList)
 		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
 }
 
+/// 本项目演示使用N==14个采样点,生成14个均匀分布的向量
 void Ssao::BuildOffsetVectors()
 {
-	// Start with 14 uniformly distributed vectors.  We choose the 8 corners of the cube
-	// and the 6 center points along each cube face.  We always alternate the points on 
-	// opposites sides of the cubes.  This way we still get the vectors spread out even
-	// if we choose to use less than 14 samples.
+	/// 选择立方体8个角点以及6个面中心点,把它们视作向量点,目的是为了得到比较分散的向量
 
 	// 8 cube corners
 	mOffsets[0] = XMFLOAT4(+1.0f, +1.0f, +1.0f, 0.0f);
@@ -454,9 +452,10 @@ void Ssao::BuildOffsetVectors()
 	mOffsets[12] = XMFLOAT4(0.0f, 0.0f, -1.0f, 0.0f);
 	mOffsets[13] = XMFLOAT4(0.0f, 0.0f, +1.0f, 0.0f);
 
+	// 创建出14个向量
 	for (int i = 0; i < 14; ++i)
 	{
-		// Create random lengths in [0.25, 1.0].
+		// 创建长度落在[0.25, 1.0]范围内的向量长度
 		float s = MathHelper::RandF(0.25f, 1.0f);
 
 		XMVECTOR v = s * XMVector4Normalize(XMLoadFloat4(&mOffsets[i]));
