@@ -28,8 +28,8 @@ public:
         ThrowIfFailed(device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
             D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer((mElementByteSize) * elementCount),//单缓存区大小 * 多少个缓存区
-			D3D12_RESOURCE_STATE_GENERIC_READ,
+            &CD3DX12_RESOURCE_DESC::Buffer((mElementByteSize)*elementCount),//单缓存区大小 * 多少个缓存区
+            D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
             IID_PPV_ARGS(&mUploadBuffer)));
 
@@ -68,7 +68,8 @@ public:
     }
 
 private:
-    Microsoft::WRL::ComPtr<ID3D12Resource> mUploadBuffer;// 一种上传缓存资源(一般用于常量缓存)
+    Microsoft::WRL::ComPtr<ID3D12Resource> mUploadBuffer;// 一种上传缓存资源(一般用于上传堆)
+
     BYTE* mMappedData = nullptr;// 映射出来的欲更新资源的指针
 
     UINT mElementByteSize = 0;// 缓存区结构体大小;若是常量缓存,则需要注意将其变为256整数倍

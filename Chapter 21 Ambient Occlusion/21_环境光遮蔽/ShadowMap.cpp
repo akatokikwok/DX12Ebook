@@ -52,16 +52,17 @@ D3D12_RECT ShadowMap::ScissorRect()const
 	return mScissorRect;
 }
 
+/// 1.暂存外部SRV\DSV句柄,2.并给阴影图创建出 SRV(cpu端)和DSV(cpu端), 以便后续 阴影图的采样和渲染
 void ShadowMap::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
 	CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv)
 {
-	// Save references to the descriptors. 
+	// 暂存指定的SRV句柄和DSV句柄的引用
 	mhCpuSrv = hCpuSrv;
 	mhGpuSrv = hGpuSrv;
 	mhCpuDsv = hCpuDsv;
 
-	//  Create the descriptors
+	//  给D3D12资源(即mShadowMap.Get()) 创建出SRV(cpu端)和DSV(cpu端), 以便后续 阴影图的采样和渲染
 	BuildDescriptors();
 }
 
@@ -79,9 +80,10 @@ void ShadowMap::OnResize(UINT newWidth, UINT newHeight)
 	}
 }
 
+/// 给D3D12资源(即mShadowMap.Get()) 创建出SRV(cpu端)和DSV(cpu端), 以便后续 阴影图的采样和渲染
 void ShadowMap::BuildDescriptors()
 {
-	// Create SRV to resource so we can sample the shadow map in a shader program.
+	// 给D3D12资源(即mShadowMap.Get()) 创建出SRV(cpu端) 以便后续在Shader里进行采样阴影图
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
@@ -90,9 +92,9 @@ void ShadowMap::BuildDescriptors()
 	srvDesc.Texture2D.MipLevels = 1;
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	srvDesc.Texture2D.PlaneSlice = 0;
-	md3dDevice->CreateShaderResourceView(mShadowMap.Get(), &srvDesc, mhCpuSrv);
+	md3dDevice->CreateShaderResourceView(mShadowMap.Get(), &srvDesc, mhCpuSrv);// 利用mShadowMap这种D3D12资源去创建出CPU端的SRV
 
-	// Create DSV to resource so we can render to the shadow map.
+	// 给D3D12资源(即mShadowMap.Get()) 创建出DSV(cpu端) 以便后续渲染阴影图
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
 	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;

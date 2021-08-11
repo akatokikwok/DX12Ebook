@@ -24,6 +24,7 @@
     <ProjectGuid>{d60a88b0-ae31-4bc5-bba1-12cee894c1dc}</ProjectGuid>
     <RootNamespace>My21环境光遮蔽</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>21_SSAO</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

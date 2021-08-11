@@ -38,6 +38,7 @@ void Ssao::GetOffsetVectors(DirectX::XMFLOAT4 offsets[14])
 	std::copy(&mOffsets[0], &mOffsets[14], &offsets[0]);
 }
 
+/// 计算高斯权重
 std::vector<float> Ssao::CalcGaussWeights(float sigma)
 {
 	float twoSigma2 = 2.0f * sigma * sigma;
@@ -96,6 +97,7 @@ CD3DX12_GPU_DESCRIPTOR_HANDLE Ssao::AmbientMapSrv()const
 	return mhAmbientMap0GpuSrv;
 }
 
+/* 保存指定的5个描述符句柄的引用(分别是2张AmbientMap,1张法线图,1张深度图,1张随机向量图) 并利用这5个句柄创建出关联SSAO效果的各自的SRV 和 RTV*/
 void Ssao::BuildDescriptors(
 	ID3D12Resource* depthStencilBuffer,
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
@@ -104,16 +106,14 @@ void Ssao::BuildDescriptors(
 	UINT cbvSrvUavDescriptorSize,
 	UINT rtvDescriptorSize)
 {
-	// Save references to the descriptors.  The Ssao reserves heap space
-	// for 5 contiguous Srvs.
+	// 保存对描述符的引用。Ssao为5个连续srv保留堆空间。
+	mhAmbientMap0CpuSrv = hCpuSrv;// SRV保存 环境光图0句柄
+	mhAmbientMap1CpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);// 偏移到下一个,保存环境光图1句柄
+	mhNormalMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);// 偏移到下一个,保存法线贴图句柄
+	mhDepthMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);// 偏移到下一个,保存深度图句柄
+	mhRandomVectorMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);// 偏移到下一个,保存随机向量图句柄
 
-	mhAmbientMap0CpuSrv = hCpuSrv;
-	mhAmbientMap1CpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
-	mhNormalMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
-	mhDepthMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
-	mhRandomVectorMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
-
-	mhAmbientMap0GpuSrv = hGpuSrv;
+	mhAmbientMap0GpuSrv = hGpuSrv;// 同上,GPU端
 	mhAmbientMap1GpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
 	mhNormalMapGpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
 	mhDepthMapGpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
@@ -123,42 +123,44 @@ void Ssao::BuildDescriptors(
 	mhAmbientMap0CpuRtv = hCpuRtv.Offset(1, rtvDescriptorSize);
 	mhAmbientMap1CpuRtv = hCpuRtv.Offset(1, rtvDescriptorSize);
 
-	//  Create the descriptors
+	// 重建出各自的描述符(此处是SRV和RTV)
 	RebuildDescriptors(depthStencilBuffer);
 }
 
 void Ssao::RebuildDescriptors(ID3D12Resource* depthStencilBuffer)
 {
+	/* 创建出法线图 的SRV*/
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Format = NormalMapFormat;
+	srvDesc.Format = NormalMapFormat;// 本SRV格式修正为DXGI_FORMAT_R16G16B16A16_FLOAT,给法线图
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Texture2D.MipLevels = 1;
-	md3dDevice->CreateShaderResourceView(mNormalMap.Get(), &srvDesc, mhNormalMapCpuSrv);
-
+	md3dDevice->CreateShaderResourceView(mNormalMap.Get()/*D3D12资源*/, &srvDesc, mhNormalMapCpuSrv/*该资源对应的句柄*/);// 创建出法线图的SRV
+	/* 创建出指定深度 的SRV*/
 	srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
 	md3dDevice->CreateShaderResourceView(depthStencilBuffer, &srvDesc, mhDepthMapCpuSrv);
-
+	/* 创建出随机向量图 的SRV*/
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	md3dDevice->CreateShaderResourceView(mRandomVectorMap.Get(), &srvDesc, mhRandomVectorMapCpuSrv);
-
+	/* 创建出环境光图0号和1号 的SRV*/
 	srvDesc.Format = AmbientMapFormat;
 	md3dDevice->CreateShaderResourceView(mAmbientMap0.Get(), &srvDesc, mhAmbientMap0CpuSrv);
 	md3dDevice->CreateShaderResourceView(mAmbientMap1.Get(), &srvDesc, mhAmbientMap1CpuSrv);
-
+	/* 创建出法线图 的RTV*/
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 	rtvDesc.Format = NormalMapFormat;
 	rtvDesc.Texture2D.MipSlice = 0;
 	rtvDesc.Texture2D.PlaneSlice = 0;
 	md3dDevice->CreateRenderTargetView(mNormalMap.Get(), &rtvDesc, mhNormalMapCpuRtv);
-
+	/* 创建出2张环境光图的RTV*/
 	rtvDesc.Format = AmbientMapFormat;
 	md3dDevice->CreateRenderTargetView(mAmbientMap0.Get(), &rtvDesc, mhAmbientMap0CpuRtv);
 	md3dDevice->CreateRenderTargetView(mAmbientMap1.Get(), &rtvDesc, mhAmbientMap1CpuRtv);
 }
 
+// 指定SSAO专用流水线, 双边模糊专用流水线
 void Ssao::SetPSOs(ID3D12PipelineState* ssaoPso, ID3D12PipelineState* ssaoBlurPso)
 {
 	mSsaoPso = ssaoPso;

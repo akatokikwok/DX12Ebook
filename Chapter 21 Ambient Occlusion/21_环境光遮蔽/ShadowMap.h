@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // ShadowMap.h by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -34,7 +34,7 @@ public:
 
 	D3D12_VIEWPORT Viewport()const;
 	D3D12_RECT ScissorRect()const;
-
+	/* 1.暂存外部SRV\DSV句柄,2.并给阴影图创建出 SRV(cpu端)和DSV(cpu端), 以便后续 阴影图的采样和渲染*/
 	void BuildDescriptors(
 		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
 		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
