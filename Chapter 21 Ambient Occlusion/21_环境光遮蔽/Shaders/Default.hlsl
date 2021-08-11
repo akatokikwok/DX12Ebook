@@ -56,7 +56,7 @@ VertexOut VS(VertexIn vin)
     // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
 
-    // Generate projective tex-coords to project SSAO map onto scene.
+    // 在顶点着色器里,为投影场景里的SSAO图而生成的投影纹理坐标
     vout.SsaoPosH = mul(posW, gViewProjTex);
 	
 	// Output vertex attributes for interpolation across triangle.
@@ -101,12 +101,12 @@ float4 PS(VertexOut pin) : SV_Target
     // Vector from point being lit to eye. 
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
-    // Finish texture projection and sample SSAO map.
+    // 在像素着色器里,完成纹理投影并对SSAO图进行采样拿到可及率
     pin.SsaoPosH /= pin.SsaoPosH.w;
     float ambientAccess = gSsaoMap.Sample(gsamLinearClamp, pin.SsaoPosH.xy, 0.0f).r;
 
-    // Light terms.
-    float4 ambient = ambientAccess * gAmbientLight * diffuseAlbedo;
+    // 根据采样数据按比例缩放光照方程里的环境光选项
+    float4 ambient = ambientAccess * gAmbientLight * diffuseAlbedo;//最终环境光 == 可及率 * 环境光光源 * 漫反照率
 
     // Only the first light casts a shadow.
     float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);

@@ -28,7 +28,6 @@ cbuffer cbRootConstants : register(b1)
     bool gHorizontalBlur;
 };
  
-// Nonnumeric values cannot be added to a cbuffer.
 Texture2D gNormalMap : register(t0);    // 本shader持有一张2D法线图纹理
 Texture2D gDepthMap : register(t1);		// 本shader持有一张2D深度图纹理
 Texture2D gRandomVecMap : register(t2); // 执行遮蔽检测用的多个随机向量的纹理

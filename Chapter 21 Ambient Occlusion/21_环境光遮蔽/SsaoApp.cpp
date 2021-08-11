@@ -1314,8 +1314,8 @@ void SsaoApp::BuildPSOs()
 	//
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc = basePsoDesc;
-	opaquePsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_EQUAL;
-	opaquePsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	opaquePsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_EQUAL;// 注意,这里以SSAO MAP第二次渲染场景时候,应该把深度检测的比较方法切换为EQUAL;由于只有距离眼睛最近的可视像素才能通过这项深度比较检测,以此来阻止第二次渲染过程的Overdraw
+	opaquePsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;// 注意,第二次写入的时候也无需写入深度缓存,原因是已经在法线渲染目标的绘制中写过一次场景深度了
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
 	//
