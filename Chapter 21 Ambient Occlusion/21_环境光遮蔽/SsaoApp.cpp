@@ -144,7 +144,7 @@ private:
 	UINT mNullTexSrvIndex1 = 0;
 	UINT mNullTexSrvIndex2 = 0;
 
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrvHandleForShadowmap;// 空SRV 在SRV堆中所处位置的句柄,注意,它的位置在"6张2D纹理","天空球","ShadowMap","SSAO","SSAO Ambient"之后
 
 	/* 有2个PASSCB*/
 	PassConstants mMainPassCB;  // PASS CB的0号:主场景PASS
@@ -355,52 +355,47 @@ void SsaoApp::Draw(const GameTimer& gt)
 	/* 管线上绑定 SRV HEAP数组*/
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-	/* 管线上绑定根签名*/
+	
+	/* 管线上绑定 "场景"的根签名*/
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	//
-	// Shadow map pass.
-	//
+	/// ShadowMap Pass相关资源绑定(材质、空SRV、纹理):
 
-	// 拿到当前帧的结构材质体资源, 作为根描述符绑定在管线上,设定为2号
-	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
+	/* ShadowMap Pass: 在管线上绑定a root descriptor(可以绕过堆,并设置为1个根描述符): "本帧的结构化材质Resource"(即场景里要用到的所有材质), 其设定为2号*/
+	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();// 本帧 结构化材质
 	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
-	/* 在管线上绑定空SRV(描述符table)为 阴影MAP的渲染过程,设定为3号*/
-	mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrv);
-	/* 绑定场景里所有的贴图到管线(描述符table),设定为4号*/
+
+	/* ShadowMap Pass: 在管线上绑定DescriptorTable: "供Shadowmap Pass渲染过程用的空着色器视图", 其设定为3号*/
+	mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrvHandleForShadowmap);
+
+	/* ShadowMap Pass: 在管线上绑定DescriptorTable: "这个场景中使用的所有纹理,注意，我们只需要指定table中的第一个描述符,根签名知道有多少个descriptor在table里",其设定为4号*/
 	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
-	/* 绘制场景的深度 到一张关联ShadowMap的纹理内*/
+	/* 绘制场景里 深度 到一张关联ShadowMap的纹理内*/
 	DrawSceneToShadowMap();
 
-	/* 绘制场景里 各物体位于观察空间的法线和深度到一张关联SSAO的纹理内*/
+	/* 绘制场景里 各物体位于观察空间的法线和深度 渲染到额外的一个屏幕大小的纹理,关联SSAO,然后将该纹理作为输入来估算每个像素点的环境光遮蔽程度*/
 	DrawNormalsAndDepth();
 
-	//
-	// Compute SSAO.
-	// 
+	/// 计算SSAO
 
 	mCommandList->SetGraphicsRootSignature(mSsaoRootSignature.Get());
 	mSsao->ComputeSsao(mCommandList.Get(), mCurrFrameResource, 3);
 
-	//
-	// Main rendering pass.
-	//
+	/// 主Pass.
 
+	// 重新设定状态无论根签名何时变化
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	// Rebind state whenever graphics root signature changes.
-
-	// Bind all the materials used in this scene.  For structured buffers, we can bypass the heap and 
-	// set as a root descriptor.
+	/* 主PASS: 在管线上绑定a root descriptor(可以绕过堆,并设置为1个根描述符): "本帧的结构化材质Resource"(即场景里要用到的所有材质), 其设定为2号*/
 	matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
 	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
-
+	/* 重设视口和裁剪矩形*/
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-	// Indicate a state transition on the resource usage.
+	/* 资源转换: 后台缓存从呈现态切换为待渲染目标态*/
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
@@ -797,9 +792,9 @@ void SsaoApp::BuildRootSignature()
 
 	// 按使用频率从高到低排列
 	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
-	slotRootParameter[0].InitAsConstantBufferView(0);    // objCB绑定槽号为b0的寄存器,但是space在0号, 参见common.hlsl
-	slotRootParameter[1].InitAsConstantBufferView(1);	 // passCB绑定槽号为b1的寄存器,参见common.hlsl
-	slotRootParameter[2].InitAsShaderResourceView(0, 1); // matSB--(t0, space0),也绑定槽号为t0的寄存器,但是space却在1号（和CubeMap公用一个SRV寄存器，但是不同Space,参见common.hlsl
+	slotRootParameter[0].InitAsConstantBufferView(0);    // objCB绑定槽号为"b0"的寄存器,但是space在0号, 参见common.hlsl
+	slotRootParameter[1].InitAsConstantBufferView(1);	 // passCB绑定槽号为"b1"的寄存器,参见common.hlsl
+	slotRootParameter[2].InitAsShaderResourceView(0, 1); // matSB--(t0, space0),也绑定槽号为"t0"的寄存器,但是space却在1号（和CubeMap公用一个SRV寄存器，但是不同Space,参见common.hlsl
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);// CubeMap纹理绑定槽号为t0的寄存器,但是space却在0号
 	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);// 10个元素的2D纹理数组,放在槽号为t3的寄存器
 
@@ -959,7 +954,7 @@ void SsaoApp::BuildDescriptorHeaps()
 
 	/* 首先偏移空SRV句柄到 指定堆中序数(CPU端和GPU端) 并最终创建出其对应的SRV*/
 	auto nullSrv = GetCpuSrv(mNullCubeSrvIndex);//CPU端空SRV在堆中序数
-	mNullSrv = GetGpuSrv(mNullCubeSrvIndex);//GPU端空SRV在堆中序数
+	mNullSrvHandleForShadowmap = GetGpuSrv(mNullCubeSrvIndex);//GPU端空SRV在堆中序数
 	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);// 创建出CPU端的空SRV的 SRV
 
 	/* 空SRV再往后偏移1格,此时视作承接阴影图用*/
@@ -1747,9 +1742,9 @@ CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetCpuSrv(int index)const
 /* 偏移SRV句柄到SRVHeap中指定的索引位置(GPU端)*/
 CD3DX12_GPU_DESCRIPTOR_HANDLE SsaoApp::GetGpuSrv(int index)const
 {
-	auto srv = CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	srv.Offset(index, mCbvSrvUavDescriptorSize);
-	return srv;
+	auto srvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	srvHandle.Offset(index, mCbvSrvUavDescriptorSize);
+	return srvHandle;
 }
 /* 偏移DSV句柄到DSVHeap中指定的索引位置(CPU端)*/
 CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetDsv(int index)const
