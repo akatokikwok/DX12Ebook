@@ -71,7 +71,7 @@ public:
 	virtual bool Initialize()override;
 
 private:
-	virtual void CreateRtvAndDsvDescriptorHeaps()override;
+	virtual void CreateRtvAndDsvDescriptorHeaps()override;// 重写框架方法:此虚函数负责创建渲染程序所需的RTV和DSV视图堆
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
@@ -261,20 +261,21 @@ bool SsaoApp::Initialize()
 	return true;
 }
 
+/// 重写框架方法:此虚函数负责创建渲染程序所需的RTV(5个视图)和DSV视图堆(2个视图)
 void SsaoApp::CreateRtvAndDsvDescriptorHeaps()
 {
-	// Add +1 for screen normal map, +2 for ambient maps.
+	// 创造出持有5个视图的 RTV堆
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
-	rtvHeapDesc.NumDescriptors = SwapChainBufferCount + 3;
+	rtvHeapDesc.NumDescriptors = SwapChainBufferCount + 1 + 2;// 注意这里视图数量发生了变化,多出的3个其中1个给屏幕法线map, 另外2个给2张ambient map
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	rtvHeapDesc.NodeMask = 0;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
 		&rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
-	// Add +1 DSV for shadow map.
+	// 创建出带2个视图的 DSV堆
 	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
-	dsvHeapDesc.NumDescriptors = 2;
+	dsvHeapDesc.NumDescriptors = 1 + 1;// 注意这里视图数量发生了变化,多出来的那1个给 shadow map的DSV用
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	dsvHeapDesc.NodeMask = 0;
@@ -285,14 +286,16 @@ void SsaoApp::CreateRtvAndDsvDescriptorHeaps()
 void SsaoApp::OnResize()
 {
 	D3DApp::OnResize();
-
+	
+	// 由于窗口发生尺寸改变, 故需要重建透视投影矩阵
 	mCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 
+	// 窗口尺寸改变的时候检测SSAO资源存在性,不存在就执行OnResize ssao资源并重建视图
 	if (mSsao != nullptr) {
 		mSsao->OnResize(mClientWidth, mClientHeight);
 
-		// Resources changed, so need to rebuild descriptors.
-		mSsao->RebuildDescriptors(mDepthStencilBuffer.Get());
+		// 重建SSAO的视图资源,此处是重建法线图SRV、深度的SRV、随机向量图SRV、环境光图0号1号SRV、法线图RTV、2张环境光图的RTV
+		mSsao->RebuildDescriptors(D3DApp::mDepthStencilBuffer.Get());
 	}
 }
 
@@ -343,6 +346,7 @@ void SsaoApp::Update(const GameTimer& gt)
 	UpdateSsaoCB(gt);/// 以1个SsaoConstants实例为其做值, 更新本帧的SSAOCB 特效
 }
 
+/// 每帧的绘制
 void SsaoApp::Draw(const GameTimer& gt)
 {
 	/* 拿取当前帧资源里的分配器并重置*/
@@ -360,7 +364,7 @@ void SsaoApp::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
 	/// ShadowMap Pass相关资源绑定(材质、空SRV、纹理):
-
+	///
 	/* ShadowMap Pass: 在管线上绑定a root descriptor(可以绕过堆,并设置为1个根描述符): "本帧的结构化材质Resource"(即场景里要用到的所有材质), 其设定为2号*/
 	auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();// 本帧 结构化材质
 	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
@@ -378,14 +382,14 @@ void SsaoApp::Draw(const GameTimer& gt)
 	DrawNormalsAndDepth();
 
 	/// 计算SSAO
+	///
+	mCommandList->SetGraphicsRootSignature(mSsaoRootSignature.Get());/// 切换为SSAO专用根签名
+	mSsao->ComputeSsao(mCommandList.Get(), mCurrFrameResource, 3);// 在管线上针对SSAO这种特效执行一些常见绑定设置和绘制出带6个角点的quad, 并对环境光图执行双边模糊
 
-	mCommandList->SetGraphicsRootSignature(mSsaoRootSignature.Get());
-	mSsao->ComputeSsao(mCommandList.Get(), mCurrFrameResource, 3);
-
-	/// 主Pass.
-
+	/// 主Pass.(0号是物体,1号是PassCB,2号是结构化材质buffer,3号是天空球,4号是所有场景纹理)
+	///
 	// 重新设定状态无论根签名何时变化
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());/// 根签名保持不变,认为场景根签名
 
 	/* 主PASS: 在管线上绑定a root descriptor(可以绕过堆,并设置为1个根描述符): "本帧的结构化材质Resource"(即场景里要用到的所有材质), 其设定为2号*/
 	matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
@@ -398,63 +402,49 @@ void SsaoApp::Draw(const GameTimer& gt)
 	/* 资源转换: 后台缓存从呈现态切换为待渲染目标态*/
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
-	// Clear the back buffer.
+	
+	/// 在DrawNormalsAndDepth方法里已经写入了深度缓存,因此无须再第二次清除深度
+	// 在主PASS里使用淡蓝色清除 RTV
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
-
-	// WE ALREADY WROTE THE DEPTH INFO TO THE DEPTH BUFFER IN DrawNormalsAndDepth,
-	// SO DO NOT CLEAR DEPTH.
-
-	// Specify the buffers we are going to render to.
+	// 绑定主PASS的渲染目标视图 是 后台缓存
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-
-	// Bind all the textures used in this scene.  Observe
-	// that we only have to specify the first descriptor in the table.  
-	// The root signature knows how many descriptors are expected in the table.
+	// 绑定主PASS里,场景中使用的所有纹理。观察得出结论,仅需要指定表中的第一个描述符, 而根签名知道表中需要多少描述符, 设定为4号
 	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-
+	// 取出并绑定主PASS里当前场景的PassCB,设定为1号
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
-	// Bind the sky cube map.  For our demos, we just use one "world" cube map representing the environment
-	// from far away, so all objects will use the same cube map and we only need to set it once per-frame.  
-	// If we wanted to use "local" cube maps, we would have to change them per-object, or dynamically
-	// index into an array of cube maps.
-
-	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	// 绑定天空球Cube map, 设定为3号
+	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());// 先暂存一下句柄并偏移至天空球
 	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
 
+	// 切换为"非透明管线",并绘制出所有层级为非透明的物体
 	mCommandList->SetPipelineState(mPSOs["opaque"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
-
+	// 切换为"阴影到面片管线", 并绘制出所有层级为shadow map的层级
 	mCommandList->SetPipelineState(mPSOs["debug"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
-
+	// 切换为"天空球管线", 并绘制出所有层级为"天空球"的层级
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
 
-	// Indicate a state transition on the resource usage.
+	// 后台缓存切换为呈现状态
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
-	// Done recording commands.
+	// 结束命令记录并组建命令数组打到队列里真正执行命令数组
 	ThrowIfFailed(mCommandList->Close());
-
-	// Add the command list to the queue for execution.
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-	// Swap the back and front buffers
+	// 交换前后台缓存并呈现
 	ThrowIfFailed(mSwapChain->Present(0, 0));
-	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;// 后台缓存序数+1并对交换链个数取模
 
-	// Advance the fence value to mark commands up to this fence point.
-	mCurrFrameResource->Fence = ++mCurrentFence;
-
-	// Add an instruction to the command queue to set a new fence point. 
-	// Because we are on the GPU timeline, the new fence point won't be 
-	// set until the GPU finishes processing all the commands prior to this Signal().
+	// 更新每帧里的围栏 为 基类自增后的围栏, 把命令标记到围栏点
+	mCurrFrameResource->Fence = ++D3DApp::mCurrentFence;
+	// 向命令队列添加一条指令专门用来设置一个新的围栏点
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
@@ -1644,24 +1634,26 @@ void SsaoApp::BuildRenderItems()
 	}
 }
 
+/// 绘制出指定层级的渲染项(物体)
 void SsaoApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
-	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));// 255对齐单帧ObejctCB
+	/* 取出单帧ObjectCB资源*/
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
 
-	// For each render item...
+	// 遍历所有渲染项(即物体)
 	for (size_t i = 0; i < ritems.size(); ++i) {
 		auto ri = ritems[i];
 
-		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
-		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
-		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
-
+		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());// 管线上绑定此渲染项(此物体)的geo管理员里的 顶点buffer视图
+		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());			// 管线上绑定此渲染项(此物体)的geo管理员里的 索引buffer视图
+		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);				// 管线上绑定此渲染项的图元类型
+		
+		// 管线上绑定ObjectCB,设定为0号; 物体CB地址就是 当前帧的物体CB地址加上渲染项的物体索引*单物体大小
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
-
 		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
+		// 使用绘制三参数绘制本次迭代的渲染项(本物体)
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
 }

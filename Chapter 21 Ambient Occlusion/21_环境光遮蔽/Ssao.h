@@ -98,7 +98,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMap;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMapUploadBuffer;
     Microsoft::WRL::ComPtr<ID3D12Resource> mNormalMap;
-    Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap0;
+    Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap0;// SSAO持有一张环境光图
     Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap1;
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapCpuSrv;
