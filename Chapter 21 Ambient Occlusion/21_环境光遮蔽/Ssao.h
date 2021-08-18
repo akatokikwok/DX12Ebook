@@ -1,4 +1,4 @@
-//***************************************************************************************
+﻿//***************************************************************************************
 // Ssao.h by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
@@ -41,6 +41,7 @@ public:
 	CD3DX12_GPU_DESCRIPTOR_HANDLE NormalMapSrv()const;
     CD3DX12_GPU_DESCRIPTOR_HANDLE AmbientMapSrv()const;
 
+    /* 保存指定的5个描述符句柄的引用(分别是2张AmbientMap,1张法线图,1张深度图,1张随机向量图) 并利用这5个句柄创建出关联SSAO效果的各自的SRV 和 RTV*/
 	void BuildDescriptors(
         ID3D12Resource* depthStencilBuffer,
 		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
@@ -97,7 +98,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMap;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMapUploadBuffer;
     Microsoft::WRL::ComPtr<ID3D12Resource> mNormalMap;
-    Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap0;
+    Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap0;// SSAO持有一张环境光图
     Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap1;
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapCpuSrv;

@@ -73,9 +73,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "20_阴影贴图", "20_阴�
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "20_ShadowMap", "Chapter 20 Shadow Mapping\20_ShadowMap\20_ShadowMap.vcxproj", "{63A25C06-D914-4931-9FC8-5FB89DEC429C}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "21_环境光遮蔽", "Chapter 21 Ambient Occlusion\21_环境光遮蔽\21_环境光遮蔽.vcxproj", "{D60A88B0-AE31-4BC5-BBA1-12CEE894C1DC}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "21_SSAO", "Chapter 21 Ambient Occlusion\21_环境光遮蔽\21_环境光遮蔽.vcxproj", "{D60A88B0-AE31-4BC5-BBA1-12CEE894C1DC}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "21_SSAO", "21_SSAO", "{1EA5C3D6-7278-4290-B329-0A3CEE154924}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "21_环境光遮蔽", "21_环境光遮蔽", "{1EA5C3D6-7278-4290-B329-0A3CEE154924}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

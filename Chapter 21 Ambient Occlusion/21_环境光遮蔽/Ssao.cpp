@@ -38,6 +38,7 @@ void Ssao::GetOffsetVectors(DirectX::XMFLOAT4 offsets[14])
 	std::copy(&mOffsets[0], &mOffsets[14], &offsets[0]);
 }
 
+/// 计算高斯权重
 std::vector<float> Ssao::CalcGaussWeights(float sigma)
 {
 	float twoSigma2 = 2.0f * sigma * sigma;
@@ -96,6 +97,7 @@ CD3DX12_GPU_DESCRIPTOR_HANDLE Ssao::AmbientMapSrv()const
 	return mhAmbientMap0GpuSrv;
 }
 
+/* 保存指定的5个描述符句柄的引用(分别是2张AmbientMap,1张法线图,1张深度图,1张随机向量图) 并利用这5个句柄创建出关联SSAO效果的各自的SRV 和 RTV*/
 void Ssao::BuildDescriptors(
 	ID3D12Resource* depthStencilBuffer,
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
@@ -104,16 +106,14 @@ void Ssao::BuildDescriptors(
 	UINT cbvSrvUavDescriptorSize,
 	UINT rtvDescriptorSize)
 {
-	// Save references to the descriptors.  The Ssao reserves heap space
-	// for 5 contiguous Srvs.
+	// 保存对描述符的引用。Ssao为5个连续srv保留堆空间。
+	mhAmbientMap0CpuSrv = hCpuSrv;// SRV保存 环境光图0句柄
+	mhAmbientMap1CpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);// 偏移到下一个,保存环境光图1句柄
+	mhNormalMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);// 偏移到下一个,保存法线贴图句柄
+	mhDepthMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);// 偏移到下一个,保存深度图句柄
+	mhRandomVectorMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);// 偏移到下一个,保存随机向量图句柄
 
-	mhAmbientMap0CpuSrv = hCpuSrv;
-	mhAmbientMap1CpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
-	mhNormalMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
-	mhDepthMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
-	mhRandomVectorMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
-
-	mhAmbientMap0GpuSrv = hGpuSrv;
+	mhAmbientMap0GpuSrv = hGpuSrv;// 同上,GPU端
 	mhAmbientMap1GpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
 	mhNormalMapGpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
 	mhDepthMapGpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
@@ -123,42 +123,44 @@ void Ssao::BuildDescriptors(
 	mhAmbientMap0CpuRtv = hCpuRtv.Offset(1, rtvDescriptorSize);
 	mhAmbientMap1CpuRtv = hCpuRtv.Offset(1, rtvDescriptorSize);
 
-	//  Create the descriptors
+	// 重建出各自的描述符(此处是SRV和RTV)
 	RebuildDescriptors(depthStencilBuffer);
 }
 
 void Ssao::RebuildDescriptors(ID3D12Resource* depthStencilBuffer)
 {
+	/* 创建出法线图 的SRV*/
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Format = NormalMapFormat;
+	srvDesc.Format = NormalMapFormat;// 本SRV格式修正为DXGI_FORMAT_R16G16B16A16_FLOAT,给法线图
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Texture2D.MipLevels = 1;
-	md3dDevice->CreateShaderResourceView(mNormalMap.Get(), &srvDesc, mhNormalMapCpuSrv);
-
+	md3dDevice->CreateShaderResourceView(mNormalMap.Get()/*D3D12资源*/, &srvDesc, mhNormalMapCpuSrv/*该资源对应的句柄*/);// 创建出法线图的SRV
+	/* 创建出指定深度 的SRV*/
 	srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
 	md3dDevice->CreateShaderResourceView(depthStencilBuffer, &srvDesc, mhDepthMapCpuSrv);
-
+	/* 创建出随机向量图 的SRV*/
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	md3dDevice->CreateShaderResourceView(mRandomVectorMap.Get(), &srvDesc, mhRandomVectorMapCpuSrv);
-
+	/* 创建出环境光图0号和1号 的SRV*/
 	srvDesc.Format = AmbientMapFormat;
 	md3dDevice->CreateShaderResourceView(mAmbientMap0.Get(), &srvDesc, mhAmbientMap0CpuSrv);
 	md3dDevice->CreateShaderResourceView(mAmbientMap1.Get(), &srvDesc, mhAmbientMap1CpuSrv);
-
+	/* 创建出法线图 的RTV*/
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 	rtvDesc.Format = NormalMapFormat;
 	rtvDesc.Texture2D.MipSlice = 0;
 	rtvDesc.Texture2D.PlaneSlice = 0;
 	md3dDevice->CreateRenderTargetView(mNormalMap.Get(), &rtvDesc, mhNormalMapCpuRtv);
-
+	/* 创建出2张环境光图的RTV*/
 	rtvDesc.Format = AmbientMapFormat;
 	md3dDevice->CreateRenderTargetView(mAmbientMap0.Get(), &rtvDesc, mhAmbientMap0CpuRtv);
 	md3dDevice->CreateRenderTargetView(mAmbientMap1.Get(), &rtvDesc, mhAmbientMap1CpuRtv);
 }
 
+// 指定SSAO专用流水线, 双边模糊专用流水线
 void Ssao::SetPSOs(ID3D12PipelineState* ssaoPso, ID3D12PipelineState* ssaoBlurPso)
 {
 	mSsaoPso = ssaoPso;
@@ -186,59 +188,61 @@ void Ssao::OnResize(UINT newWidth, UINT newHeight)
 	}
 }
 
+/// 在管线上针对SSAO这种特效执行一些常见绑定设置和绘制出带6个角点的quad,并对环境光图执行双边模糊
 void Ssao::ComputeSsao(
 	ID3D12GraphicsCommandList* cmdList,
 	FrameResource* currFrame,
 	int blurCount)
 {
+	/* 重设视口和裁剪矩形*/
 	cmdList->RSSetViewports(1, &mViewport);
 	cmdList->RSSetScissorRects(1, &mScissorRect);
 
 	// We compute the initial SSAO to AmbientMap0.
 
-	// Change to RENDER_TARGET.
+	/* mAmbientMap0(就是1个D3D12资源) 被切换为渲染目标*/
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
 		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
+	/* 清除 环境光图0号 的渲染目标句柄RTV*/
 	float clearValue[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	cmdList->ClearRenderTargetView(mhAmbientMap0CpuRtv, clearValue, 0, nullptr);
-
-	// Specify the buffers we are going to render to.
+	/* 指定去渲染这张 环境光图0号*/
 	cmdList->OMSetRenderTargets(1, &mhAmbientMap0CpuRtv, true, nullptr);
 
-	// Bind the constant buffer for this pass.
+	/* 给本SSAO CB绑定常数缓存*/
+	// 绑定本帧的SSAO CB, 设为0号
 	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();
 	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);
+	// 绑定BitConstant,设为1号
 	cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);
-
-	// Bind the normal and depth maps.
+	// 绑定法线及深度图,设为2号
 	cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);
-
-	// Bind the random vector map.
+	// 绑定随机向量图,设为3号
 	cmdList->SetGraphicsRootDescriptorTable(3, mhRandomVectorMapGpuSrv);
-
+	// 流水线暂设为SSAO专用PSO
 	cmdList->SetPipelineState(mSsaoPso);
 
-	// Draw fullscreen quad.
+	// 绑定并绘制全屏quad (有6个角点)
 	cmdList->IASetVertexBuffers(0, 0, nullptr);
 	cmdList->IASetIndexBuffer(nullptr);
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	cmdList->DrawInstanced(6, 1, 0, 0);
 
-	// Change back to GENERIC_READ so we can read the texture in a shader.
+	// 把"环境光图0号"切换为读状态,以便可以在shader里读取那些承载SSAO的纹理
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));
-
+	// 对环境图采用双边模糊 来减少由于采样少导致的噪点
 	BlurAmbientMap(cmdList, currFrame, blurCount);
 }
 
 void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount)
 {
+	/* 切换为双边模糊管线并绑定一下ssao常量*/
 	cmdList->SetPipelineState(mBlurPso);
-
 	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();
 	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);
-
+	/* 绘制指定次数的双边模糊*/
 	for (int i = 0; i < blurCount; ++i)
 	{
 		BlurAmbientMap(cmdList, true);
@@ -246,14 +250,15 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* cur
 	}
 }
 
+/// 根据横向还是纵向来更新output渲染目标,并绘制6个角点面片
 void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 {
+	// 声明待操作值
 	ID3D12Resource* output = nullptr;
 	CD3DX12_GPU_DESCRIPTOR_HANDLE inputSrv;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE outputRtv;
 
-	// Ping-pong the two ambient map textures as we apply
-	// horizontal and vertical blur passes.
+	// 根据横向还是纵向来更新输出值
 	if (horzBlur == true)
 	{
 		output = mAmbientMap1.Get();
@@ -268,30 +273,28 @@ void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur)
 		outputRtv = mhAmbientMap0CpuRtv;
 		cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);
 	}
-
+	/* 把output 从读切换为渲染目标*/
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
 		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
+	/* 先清空并绑定output渲染目标*/
 	float clearValue[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	cmdList->ClearRenderTargetView(outputRtv, clearValue, 0, nullptr);
-
 	cmdList->OMSetRenderTargets(1, &outputRtv, true, nullptr);
 
-	// Normal/depth map still bound.
-
-
-	// Bind the normal and depth maps.
+	// 法线和深度图仍然处于被绑定状态
 	cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);
 
-	// Bind the input ambient map to second texture table.
+	// 给第二个纹理表绑定输入的环境光图
 	cmdList->SetGraphicsRootDescriptorTable(3, inputSrv);
 
-	// Draw fullscreen quad.
+	// 绘制全屏面片(6个角点)
 	cmdList->IASetVertexBuffers(0, 0, nullptr);
 	cmdList->IASetIndexBuffer(nullptr);
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	cmdList->DrawInstanced(6, 1, 0, 0);
 
+	// 把output这个资源切换为可读状态
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(output,
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ));
 }

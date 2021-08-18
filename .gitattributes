@@ -4,3 +4,4 @@
 =======
 *.txt filter=lfs diff=lfs merge=lfs -text
 >>>>>>> ver1.8_Practice
+*.exe filter=lfs diff=lfs merge=lfs -text
