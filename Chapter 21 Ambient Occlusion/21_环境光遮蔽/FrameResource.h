@@ -64,13 +64,11 @@ struct SsaoConstants
 struct MaterialData
 {
 	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };// 单帧结构化材质里 持有1个漫反照率
-	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };// 单帧结构化材质里 持有1个菲涅尔系数(就是施利克公式里的RF(0°))(和粗糙度一起用于控制镜面光)
-	float Roughness = 0.5f; // 单帧结构化材质里 持有1个粗糙度(和菲涅尔系数一起用于控制镜面光), 越大越粗糙
-
+	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };		 // 单帧结构化材质里 持有1个菲涅尔系数(就是施利克公式里的RF(0°))(和粗糙度一起用于控制镜面光)
+	float Roughness = 0.5f;										 // 单帧结构化材质里 持有1个粗糙度(和菲涅尔系数一起用于控制镜面光), 越大越粗糙
 	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();// 单帧结构化材质里 持有一个 MatTransform,用于纹理映射
-
-	UINT DiffuseMapIndex = 0;// 单帧结构化材质里 持有一张 2D漫反射纹理
-	UINT NormalMapIndex = 0;// 单帧结构化材质里 持有一张 法线纹理
+	UINT DiffuseMapIndex = 0;									 // 单帧结构化材质里 持有一张 2D漫反射纹理
+	UINT NormalMapIndex = 0;									 // 单帧结构化材质里 持有一张 法线纹理
 	UINT MaterialPad1;
 	UINT MaterialPad2;
 };

@@ -26,34 +26,35 @@ struct VertexIn
     float3 TangentU : TANGENT;
 };
 
+/* 经过顶点着色器处理后得到的顶点型*/
 struct VertexOut
 {
-    float4 PosH : SV_POSITION;
-    float4 ShadowPosH : POSITION0;
-    float4 SsaoPosH : POSITION1;
-    float3 PosW : POSITION2;
-    float3 NormalW : NORMAL;
-    float3 TangentW : TANGENT;
-    float2 TexC : TEXCOORD;
+    float4 PosH : SV_POSITION;                           // 位于齐次裁剪空间的posH
+    float4 ShadowPosH : POSITION0 /*注意语义是POSITION0*/;// 变换到位于纹理空间的场景阴影图的ShadowPosH,借由posW被gShadowTransform变换得到
+    float4 SsaoPosH : POSITION1   /*注意语义是POSITION1*/;// 投影场景里的SSAO图而生成的投影纹理坐标SsaoPosH
+    float3 PosW : POSITION2       /*注意语义是POSITION2*/;// 位于世界空间的PosW
+    float3 NormalW : NORMAL;                             // 位于世界空间的法线
+    float3 TangentW : TANGENT;                           // 位于世界空间的切线
+    float2 TexC : TEXCOORD;                              // 纹理坐标
 };
 
 VertexOut VS(VertexIn vin)
 {
+    // 先默认初始化一下顶点实例
     VertexOut vout = (VertexOut) 0.0f;
 
-	// Fetch the material data.
+	// 从结构化材质里 拿取每个物体独有的材质数据
     MaterialData matData = gMaterialData[gMaterialIndex];
 	
-    // Transform to world space.
+    // 借由世界矩阵 把PosL变换到世界空间
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
-
-    // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
+    // 借由世界矩阵 把NormalL变换到世界空间; 只做均匀缩放，所以可以不使用逆转置矩阵
     vout.NormalW = mul(vin.NormalL, (float3x3) gWorld);
-	
+	// 借由世界矩阵 把TangentU 从物体空间变换到世界空间;
     vout.TangentW = mul(vin.TangentU, (float3x3) gWorld);
 
-    // Transform to homogeneous clip space.
+    // 借由"视图投影"叠加矩阵, 拿到位于齐次裁剪空间的顶点PosH
     vout.PosH = mul(posW, gViewProj);
 
     // 在顶点着色器里,为投影场景里的SSAO图而生成的投影纹理坐标
@@ -64,8 +65,10 @@ VertexOut VS(VertexIn vin)
     vout.TexC = mul(texC, matData.MatTransform).xy;
 
     // Generate projective tex-coords to project shadow map onto scene.
+    // 把顶点从世界空间变换到纹理空间,通过投影取得场景阴影图的效果
     vout.ShadowPosH = mul(posW, gShadowTransform);
 	
+    // 拿到最终计算出来的顶点实例
     return vout;
 }
 

@@ -361,7 +361,7 @@ void SsaoApp::Draw(const GameTimer& gt)
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 	
 	/* 管线上绑定 "场景"的根签名*/
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());/// 第一次仍设置为 "场景根签名"
 
 	/// ShadowMap Pass相关资源绑定(材质、空SRV、纹理):
 	///
@@ -784,7 +784,7 @@ void SsaoApp::BuildRootSignature()
 	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
 	slotRootParameter[0].InitAsConstantBufferView(0);    // objCB绑定槽号为"b0"的寄存器,但是space在0号, 参见common.hlsl
 	slotRootParameter[1].InitAsConstantBufferView(1);	 // passCB绑定槽号为"b1"的寄存器,参见common.hlsl
-	slotRootParameter[2].InitAsShaderResourceView(0, 1); // matSB--(t0, space0),也绑定槽号为"t0"的寄存器,但是space却在1号（和CubeMap公用一个SRV寄存器，但是不同Space,参见common.hlsl
+	slotRootParameter[2].InitAsShaderResourceView(0, 1/*register space号*/); // matSB--(t0, space0),也绑定槽号为"t0"的寄存器,但是space却在1号（和CubeMap公用一个SRV寄存器，但是不同Space,参见common.hlsl
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);// CubeMap纹理绑定槽号为t0的寄存器,但是space却在0号
 	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);// 10个元素的2D纹理数组,放在槽号为t3的寄存器
 

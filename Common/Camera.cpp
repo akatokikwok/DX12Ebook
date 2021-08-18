@@ -84,24 +84,24 @@ float Camera::GetAspect()const
 
 float Camera::GetFovY()const
 {
-	return mFovY;
+	return mFovY;// 得到垂直视场角α
 }
 
 float Camera::GetFovX()const
 {
-	// 一旦知晓垂直视场角a和宽高比r;就必定可以推导出水平视场角 B==2 * arctan( w/h * tan(a/2) )
-	float halfWidth = 0.5f*GetNearWindowWidth();
-	return 2.0f*atan(halfWidth / mNearZ);
+	// 一旦知晓垂直视场角a和宽高比r;就必定可以推导出水平视场角 注意 !!!!!β==2 * arctan( ratio * tan(α/2) ); 其中ratio * tan(α/2) 化简得 β==(w)/(2*nearZ)
+	float halfWidth = 0.5f*GetNearWindowWidth();// tan(α/2) == 半高/nearZ
+	return 2.0f*atan(halfWidth / mNearZ);//得到水平视场角β
 }
 
 float Camera::GetNearWindowWidth()const
 {
-	return mAspect * mNearWindowHeight;
+	return mAspect * mNearWindowHeight;// 宽高比 乘以 高 等于 宽
 }
 
 float Camera::GetNearWindowHeight()const
 {
-	return mNearWindowHeight;
+	return mNearWindowHeight;// 仅拿到高
 }
 
 float Camera::GetFarWindowWidth()const
@@ -124,9 +124,9 @@ void Camera::SetLens(float fovY, float aspect, float zn, float zf)
 	mFarZ = zf;
 
 	mNearWindowHeight = 2.0f * mNearZ * tanf( 0.5f*mFovY );
-	mFarWindowHeight  = 2.0f * mFarZ * tanf( 0.5f*mFovY );
+	mFarWindowHeight  = 2.0f * mFarZ  * tanf( 0.5f*mFovY );
 
-	XMMATRIX P = XMMatrixPerspectiveFovLH(mFovY, mAspect, mNearZ, mFarZ);
+	XMMATRIX P = XMMatrixPerspectiveFovLH(mFovY/*垂直视场角*/, mAspect/*宽高比*/, mNearZ/*近裁剪面*/, mFarZ/*远裁剪面*/);// XMMatrixPerspectiveFovLH构建投影矩阵
 	XMStoreFloat4x4(&mProj, P);
 }
 
