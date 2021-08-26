@@ -16,7 +16,7 @@ struct Light
     float SpotPower;     // 仅供聚光灯使用
 };
 
-// 材质结构体
+// 材质结构体模板
 struct Material
 {
     float4 DiffuseAlbedo;// 漫反照率

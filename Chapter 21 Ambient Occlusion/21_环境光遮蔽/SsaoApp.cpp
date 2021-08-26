@@ -178,41 +178,43 @@ private:
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	PSTR cmdLine, int showCmd)
 {
-	// Enable run-time memory check for debug builds.
+	// 给调试版本开启运行时内存监测,监督内存泄漏
 #if defined(DEBUG) | defined(_DEBUG)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
 	try {
-		SsaoApp theApp(hInstance);
+		SsaoApp theApp(hInstance);// 句柄填到本SSAO项目里
+		// 如若SSAO工程没有执行初始化就直接返回
 		if (!theApp.Initialize())
 			return 0;
 
-		return theApp.Run();
-	}
-	catch (DxException& e) {
+		return theApp.Run();// Run接口负责, 如果没有消息传来,就持续地处理游戏逻辑:计算FPS和单帧毫秒长; 调用子类重写的纯虚函数Update; 调用子类重写的纯虚函数Draw
+	}																		  
+	catch (DxException& e) {												  
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
 		return 0;
 	}
 }
 
+/// 程序构造器: 构造的时候,设定一下场景包围盒
 SsaoApp::SsaoApp(HINSTANCE hInstance)
 	: D3DApp(hInstance)
 {
-	// Estimate the scene bounding sphere manually since we know how the scene was constructed.
-	// The grid is the "widest object" with a width of 20 and depth of 30.0f, and centered at
-	// the world space origin.  In general, you need to loop over every world space vertex
-	// position and compute the bounding sphere.
+	// 手动估计场景边界球，因为我们知道场景是如何构建的。网格是“最宽的物体”，宽度为20，深度为30.0f，以世界空间原点为中心。通常情况下，需要遍历每个世界空间顶点位置并计算边界球
 	mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
 	mSceneBounds.Radius = sqrtf(10.0f * 10.0f + 15.0f * 15.0f);
 }
 
+/// 程序析构:强令CPU等待GPU
 SsaoApp::~SsaoApp()
 {
+	// 强令CPU等待GPU
 	if (md3dDevice != nullptr)
-		FlushCommandQueue();
+		D3DApp::FlushCommandQueue();
 }
 
+/// 场景初始化
 bool SsaoApp::Initialize()
 {
 	// 先检查框架基类初始化
@@ -991,8 +993,8 @@ void SsaoApp::BuildShadersAndInputLayout()
 	// 给阴影图用的shader--Shadows.hlsl
 	mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", nullptr, "PS", "ps_5_1");
-	mShaders["shadowAlphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", alphaTestDefines, "PS", "ps_5_1");
-	// 渲染阴影图到quad上的shader
+	mShaders["shadowAlphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Shadows.hlsl", alphaTestDefines, "PS", "ps_5_1");// 这一张是在像素着色器里开启阿尔法测试
+	// 渲染SSAO图到quad上的shader,注意,hlsl里采样的是SSAO MAP而不是shadowmap,且此时顶点着色器里的顶点已经处于齐次裁剪空间了!!!!!!!!
 	mShaders["debugVS"] = d3dUtil::CompileShader(L"Shaders\\ShadowDebug.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["debugPS"] = d3dUtil::CompileShader(L"Shaders\\ShadowDebug.hlsl", nullptr, "PS", "ps_5_1");
 	// 责把场景里各物体位于view space里的法向量渲染到与屏幕大小一致,格式一致的纹理内的 shader

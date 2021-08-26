@@ -39,7 +39,7 @@ TextureCube gCubeMap : register(t0, space0); // t0, space0, Cubemap纹理
 Texture2D gShadowMap : register(t1);         // t1, space0, 一张阴影图
 Texture2D gSsaoMap   : register(t2);         // t2, space0, 一张SSAO图
 
-// 一个纹理数组，它只支持在shader模型5.1+。不像Texture2DArray，纹理
+// 一个2D纹理数组，它只支持在shader模型5.1+。不像Texture2DArray，纹理
 // 这个数组可以是不同的大小和格式，使它比纹理数组更灵活
 Texture2D gTextureMaps[10] : register(t3);   // t3, space0, 2d Texture(10张构成数组)
 
@@ -121,7 +121,7 @@ float3 NormalSampleToWorldSpace(float3 normalMapSample/*被采样法线图*/, fl
 //---------------------------------------------------------------------------------------
 //#define SMAP_SIZE = (2048.0f)
 //#define SMAP_DX = (1.0f / SMAP_SIZE)
-float CalcShadowFactor(float4 shadowPosH /*接受外部1个顶点*/)
+float CalcShadowFactor(float4 shadowPosH /*接受外部1个"场景阴影坐标"*/)
 {
     // 将处于齐次裁剪空间未执行齐次除法的顶点变换到NDC空间（如果是正交投影，则W=1）
     shadowPosH.xyz /= shadowPosH.w;

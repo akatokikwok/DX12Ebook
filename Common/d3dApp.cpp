@@ -82,13 +82,13 @@ int D3DApp::Run()
 		}
 		// 否则就应该正常执行 游戏逻辑
 		else {
-			mTimer.Tick();
+			mTimer.Tick();// 计算时刻差
 
-			if (!mAppPaused) {
-				CalculateFrameStats();
-				Update(mTimer);
-				Draw(mTimer);
-			} else {
+			if (!mAppPaused) {/* 如果程序运行中*/
+				CalculateFrameStats();// 计算FPS和单帧毫秒长
+				Update(mTimer);		  // 调用子类重写的纯虚函数Update
+				Draw(mTimer);		  // 调用子类重写的纯虚函数Draw
+			} else {/* 如果程序暂停,就睡眠*/
 				Sleep(100);
 			}
 		}

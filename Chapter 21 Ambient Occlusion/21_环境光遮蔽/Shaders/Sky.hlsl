@@ -14,10 +14,11 @@ struct VertexIn
     float2 TexC : TEXCOORD;
 };
 
+/* 天空球所需要的顶点实例*/
 struct VertexOut
 {
-    float4 PosH : SV_POSITION;
-    float3 PosL : POSITION;
+    float4 PosH : SV_POSITION; // CubeMap的每顶点"齐次裁剪空间位置PosH"
+    float3 PosL : POSITION; // CubeMap的每个顶点的"查找向量PosL"
 };
  
 VertexOut VS(VertexIn vin)
@@ -33,8 +34,8 @@ VertexOut VS(VertexIn vin)
 	// 总是以摄像机作为天空球的中心
     posW.xyz += gEyePosW;
 
-	// 将顶点变换到齐次裁剪空间
-    vout.PosH = mul(posW, gViewProj).xyww;
+	// 将顶点变换到齐次裁剪空间,注意这里比较特殊是取xyww
+    vout.PosH = mul(posW, gViewProj).xyww; // 注意这里比较特殊是取xyww
 	
     return vout;
 }
