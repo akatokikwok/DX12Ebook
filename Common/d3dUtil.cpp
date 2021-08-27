@@ -38,23 +38,23 @@ ComPtr<ID3DBlob> d3dUtil::LoadBinary(const std::wstring& filename)
 Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
 	ID3D12Device* device,
 	ID3D12GraphicsCommandList* cmdList,
-	const void* initData,// 被拷贝到默认缓存区的真正数据,一般是顶点数组数据
+	const void* initData,// 被拷贝到默认缓存区的真正数据,一般是 外部指定的数据源
 	UINT64 byteSize,// 缓存区所占字节数,一般是顶点数量*sizeof(顶点结构体)
 	Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer// 声明的上传堆
 )
 {
 	ComPtr<ID3D12Resource> defaultBuffer;// 声明1个默认buffer,它是ID3D12Resouce型资源
 
-	/// 创建实际的D3D12_HEAP_TYPE_DEFAULT缓存资源
+	/// 创建实际的D3D12_HEAP_TYPE_DEFAULT缓存资源,其实就是创建1个默认堆CommittedResource
 	ThrowIfFailed(device->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),// 类型是D3D12_HEAP_TYPE_DEFAULT
 		D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(byteSize),
 		D3D12_RESOURCE_STATE_COMMON,
 		nullptr,
 		IID_PPV_ARGS(defaultBuffer.GetAddressOf())));
 
-	/// 为了把CPU端内存里的数据最终写进DEFAULT缓存, 还需要借助创建一个处于中介位置的UPLOADHEAP
+	/// 为了把CPU端内存里的数据最终写进DEFAULT缓存, 还需要借助创建一个处于中介位置的UPLOADHEAP; 其实就是创建1个上传堆CommittedResource
 	ThrowIfFailed(device->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 		D3D12_HEAP_FLAG_NONE,
@@ -69,14 +69,18 @@ Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
 	subResourceData.RowPitch = byteSize;// 欲复制资源的字节数
 	subResourceData.SlicePitch = subResourceData.RowPitch;// 也是欲复制资源的字节数
 
-	/// 三步 利用资源屏障及Transition方法 先把默认缓存资源从普通状态切换为待拷贝状态
+	/* 三步 利用资源屏障及Transition方法 先把默认缓存资源从普通状态切换为待拷贝状态
 	// UpdateSubresources内置方法 负责 把数据从CPU端 拷贝到 处在中介位置的UploadHeap里,目的地则是DefaultHeap
-	// 再通过调用ID3D12CommandList::CopySubResourceRegion方法,把UploadHeap的数据再拷贝到 mBuffer里
+	// 再通过调用ID3D12CommandList::CopySubResourceRegion方法,把UploadHeap的数据再拷贝到 mBuffer里 */
+
+	/* 先把default堆资源 从普通状态切换为拷贝目标(接收别人的数据)状态*/
 	cmdList->ResourceBarrier(1, 
 		&CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST)
 	);
-	UpdateSubresources<1>(cmdList, defaultBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &subResourceData);
+	/* UpdateSubresources内置方法 负责 把数据从CPU端 拷贝到 处在中介位置的上传堆,目的地则是DefaultHeap*/
+	UpdateSubresources<1>(cmdList, defaultBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &subResourceData);// 把subResourceData作为数据源从CPU拷贝到中介上传堆,以便后续再传到默认堆
+	/* 再把default堆资源 从拷贝目标(接收别人的数据)状态切换为普通状态*/
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
 		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ)
 	);

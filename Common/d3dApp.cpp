@@ -82,13 +82,13 @@ int D3DApp::Run()
 		}
 		// 否则就应该正常执行 游戏逻辑
 		else {
-			mTimer.Tick();
+			mTimer.Tick();// 计算时刻差
 
-			if (!mAppPaused) {
-				CalculateFrameStats();
-				Update(mTimer);
-				Draw(mTimer);
-			} else {
+			if (!mAppPaused) {/* 如果程序运行中*/
+				CalculateFrameStats();// 计算FPS和单帧毫秒长
+				Update(mTimer);		  // 调用子类重写的纯虚函数Update
+				Draw(mTimer);		  // 调用子类重写的纯虚函数Draw
+			} else {/* 如果程序暂停,就睡眠*/
 				Sleep(100);
 			}
 		}
@@ -382,7 +382,7 @@ bool D3DApp::InitMainWindow()
 	int height = R.bottom - R.top;
 	/* 创建出一个窗口 */
 	mhMainWnd = CreateWindow(L"MainWnd", mMainWndCaption.c_str(),
-		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, mhAppInst, 0);
+		WS_OVERLAPPEDWINDOW, /*CW_USEDEFAULT, CW_USEDEFAULT,*/1000, 350, width, height, 0, 0, mhAppInst, 0);
 	if (!mhMainWnd) {
 		MessageBox(0, L"窗口创建失败;;;;CreateWindow Failed.", 0, 0);
 		return false;

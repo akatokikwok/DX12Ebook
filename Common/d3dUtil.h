@@ -113,7 +113,8 @@ public:
 	/* 加载.cso文件字节码到程序中 */
 	static Microsoft::WRL::ComPtr<ID3DBlob> LoadBinary(const std::wstring& filename);
 
-	/* 使用d3dUtil::CreateDefaultBuffer来避免重复使用默认堆操作GPU资源 (为了利用Upload堆来初始化DEFAULT堆中的数据)
+	/* 使用d3dUtil::CreateDefaultBuffer函数: 借助一个上传堆来把数据源从CPU流传至默认堆(GPU端),最后拿到1个保存了数据源的缓存defaultBuffer
+	 * 避免重复使用默认堆操作GPU资源 (为了利用Upload堆来初始化DEFAULT堆中的数据)
 	 * 常用于创建顶点\索引缓存
 	 * 参数initData:数据源, byteSize:此种数据的大小
 	 */
@@ -256,7 +257,7 @@ struct Material
 	// 漫反射纹理位于SRV堆中的索引, 默认为-1
 	int DiffuseSrvHeapIndex = -1;
 
-	// 法线纹理位于SRV堆中的索引,默认为-1
+	// 增加normalSrvHeapIndex字段，存放法线纹理在SRV堆中的索引。,默认为-1
 	int NormalSrvHeapIndex = -1;
 
 	// "脏标记", 用以表示本材质已有变动,提示更新常数缓存,默认为3(帧资源个数);
