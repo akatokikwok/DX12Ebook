@@ -10,7 +10,7 @@
 //***************************************************************************************
 // SSAO做法是每帧把场景里view space里的法线绘制到一个full screen render target里,并把场景里的depth绘制到普通的深度模板缓存里
 // 接着,仅用上述的法线渲染目标和深度模板作为输入,求解估算每个像素的AO数据
-// 只要拿取了存有每个像素AO数据的这块纹理,就可以以纹理里的SSAO信息为每个像素调整ambient属性,再像往常一样把处理后的场景绘制到RT里
+// 只要拿取了存有每个像素AO数据的这块纹理,就可以以纹理里的SSAO信息为每个像素调整ambient属性,再像往常一样把"处理后的场景"绘制到RT里
 
 #include "../../Common/d3dApp.h"
 #include "../../Common/MathHelper.h"
@@ -28,7 +28,7 @@ using namespace DirectX::PackedVector;
 /* 暂定3个帧资源*/
 const int gNumFrameResources = 3;
 
-/// 本工程要用到的渲染项
+/// SSAO工程要用到的渲染项
 struct RenderItem
 {
 	RenderItem() = default;
@@ -450,6 +450,7 @@ void SsaoApp::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
+/// 鼠标按下事件:更新最后坐标以及捕捉主窗口
 void SsaoApp::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
@@ -458,11 +459,13 @@ void SsaoApp::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
+/// 鼠标松开事件:释放主窗口捕捉
 void SsaoApp::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
+/// 光标移动事件: 让摄像机视角随光标坐标移动
 void SsaoApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0) {

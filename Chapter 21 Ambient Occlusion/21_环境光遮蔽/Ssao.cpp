@@ -19,7 +19,7 @@ Ssao::Ssao(
 
 	OnResize(width, height);
 
-	BuildOffsetVectors();
+	BuildOffsetVectors();// 在ssao这种特效构造器里就生成14个随机向量
 	BuildRandomVectorTexture(cmdList);
 }
 
@@ -461,7 +461,7 @@ void Ssao::BuildOffsetVectors()
 		// 创建长度落在[0.25, 1.0]范围内的向量长度
 		float s = MathHelper::RandF(0.25f, 1.0f);
 
-		XMVECTOR v = s * XMVector4Normalize(XMLoadFloat4(&mOffsets[i]));
+		XMVECTOR v = s * XMVector4Normalize(XMLoadFloat4(&mOffsets[i]));// 随机向量长度 * 各随即向量方向
 
 		XMStoreFloat4(&mOffsets[i], v);
 	}

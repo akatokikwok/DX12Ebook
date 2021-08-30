@@ -25,12 +25,12 @@
 // 结构化材质--对应帧资源里的struct MaterialData
 struct MaterialData
 {
-    float4 DiffuseAlbedo;   // 单帧结构化材质里 持有1个漫反照率
-    float3 FresnelR0;       // 单帧结构化材质里 持有1个菲涅尔系数(就是施利克公式里的RF(0°))(和粗糙度一起用于控制镜面光)
-    float Roughness;        // 单帧结构化材质里 持有1个粗糙度(和菲涅尔系数一起用于控制镜面光), 越大越粗糙
-    float4x4 MatTransform;  // 单帧结构化材质里 持有一个 MatTransform,用于纹理映射
-    uint DiffuseMapIndex;   // 单帧结构化材质里 持有一张 2D漫反射纹理
-    uint NormalMapIndex;    // 单帧结构化材质里 持有一张 法线纹理
+    float4 DiffuseAlbedo;   // 单帧结构化材质里 持有1个 漫反照率
+    float3 FresnelR0;       // 单帧结构化材质里 持有1个 菲涅尔系数(就是施利克公式里的RF(0°))(和粗糙度一起用于控制镜面光)
+    float Roughness;        // 单帧结构化材质里 持有1个 粗糙度(和菲涅尔系数一起用于控制镜面光), 越大越粗糙
+    float4x4 MatTransform;  // 单帧结构化材质里 持有1个 MatTransform,用于纹理映射, 负责参与计算 "输出顶点的TexC";即vout.TexC = mul(texC, matData.MatTransform).xy
+    uint DiffuseMapIndex;   // 单帧结构化材质里 持有1张 2D漫反射纹理的查找索引
+    uint NormalMapIndex;    // 单帧结构化材质里 持有1张 法线纹理的查找索引
     uint MatPad1;
     uint MatPad2;
 };
@@ -73,10 +73,10 @@ cbuffer cbPass : register(b1)
     float4x4 gInvView;
     float4x4 gProj;
     float4x4 gInvProj;
-    float4x4 gViewProj;       // 用以变换出 位于齐次裁剪空间的顶点-PosH
+    float4x4 gViewProj;        // 负责参与计算 "位于齐次裁剪空间的顶点" 即vout.PosH
     float4x4 gInvViewProj;
-    float4x4 gViewProjTex;    // 用以变换出 生成SSAO图里的投影纹理坐标--SsaoPosH
-    float4x4 gShadowTransform;// 阴影图要用的 ShadowTransform
+    float4x4 gViewProjTex;     // 负责参与计算 "SSAO图里的投影纹理坐标" 即vout.SsaoPosH
+    float4x4 gShadowTransform; // 负责参与计算 "场景阴影坐标"          即vout.ShadowPosH
     float3 gEyePosW;          // 眼睛位置
     float cbPerObjectPad1;
     float2 gRenderTargetSize; // 阴影图要用的 RenderTargetSize
@@ -101,7 +101,7 @@ float3 NormalSampleToWorldSpace(float3 normalMapSample/*被采样法线图*/, fl
 {
 	// 将法线贴图每个像素的法线值从[0, 1]映射到[-1 ,1],得到法线值
     // DX12中使用Sample函数来采样法线图，要注意的是，此函数已经除以255，将法线从[0, 255]转换成了[0, 1]之间，所以欲从法线图得到法线值只需乘2减1即可
-    float3 normalT = 2.0f * normalMapSample - 1.0f;// 位于切线空间的法线值
+    float3 normalT = 2.0f * normalMapSample - 1.0f; // 从纹理图映射到法向量[0,1]->[-1,1]; 此时它仍位于切线空间
 
 	// 规范正交基
     float3 N = unitNormalW;
@@ -129,7 +129,7 @@ float CalcShadowFactor(float4 shadowPosH /*接受外部1个"场景阴影坐标"*
     // 获取 处于NDC空间中的深度值
     float depth = shadowPosH.z;
     
-    /* 读取阴影图--gShadowMap的宽高及mip级数*/
+    /* 读取阴影图中的系列数据并暂存至几个变量--gShadowMap的宽高及mip级数*/
     uint width, height, numMips;
     gShadowMap.GetDimensions(0, width, height, numMips);
 

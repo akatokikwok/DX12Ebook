@@ -54,9 +54,7 @@ public:
 
     void SetPSOs(ID3D12PipelineState* ssaoPso, ID3D12PipelineState* ssaoBlurPso);
 
-	///<summary>
-	/// Call when the backbuffer is resized.  
-	///</summary>
+	/// 当后台缓存发生尺寸表换的时候调用此函数
 	void OnResize(UINT newWidth, UINT newHeight);
   
     ///<summary>
