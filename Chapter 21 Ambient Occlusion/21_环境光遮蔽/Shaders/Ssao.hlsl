@@ -20,7 +20,7 @@ cbuffer cbSsao : register(b0)
     
     float4 gBlurWeights[3];     // 给 SsaoBlur.hlsl用的模糊权重数组
 
-    float2 gInvRenderTargetSize;
+    float2 gInvRenderTargetSize; // 用于模糊逻辑里的texOffset计算
 
     // 指定观察空间中的各个坐标
     float gOcclusionRadius;   // 遮蔽半径  
@@ -32,7 +32,7 @@ cbuffer cbSsao : register(b0)
 /* SSAO模糊处理要使用到的常量*/
 cbuffer cbRootConstants : register(b1)
 {
-    bool gHorizontalBlur;
+    bool gHorizontalBlur;// 是否开启水平模糊
 };
  
 Texture2D gNormalMap : register(t0);    // SSAO处理shader 持有一张2D法线图纹理
@@ -87,10 +87,11 @@ VertexOut VS(uint vid : SV_VertexID)
     return vout;
 }
 
-// 得到了潜在遮蔽点r(r点是视线到随即向量q点的延长线打到q物体上的落点, 存在r = rz/qz * q), 也就能够执行遮蔽检测 来估算 p点是否被r点遮挡
+/* 此函数负责描述 点p被点r的遮蔽严重程度 */
+// 得到了潜在遮蔽点r(r点是视线到随机向量q点的延长线打到q物体上的落点, 存在r = rz/qz * q), 也就能够执行遮蔽检测 来估算 p点是否被r点遮挡
 // 若|pz - rz|绝对值过大 表明r点离p点太远了,不足以遮挡p点,此时认为q点与p点共面,即认为q点也不会遮挡p点
 // p点处法线n 与向量 r-p的夹角测定方法是 max(n · normalize(r-p), 0),目的是为了阻止 自交
-// 根据深度差计算遮蔽值; 目标点p被遮蔽点r遮挡严重程度的逻辑封装成一个函数
+// 根据pr两点深度差计算遮蔽值; 目标点p被遮蔽点r遮挡严重程度的逻辑封装成一个函数
 float OcclusionFunction(float distZ /* 入参是目标点p和遮蔽点r的深度差: |pz - rz| */)
 {
 	//
@@ -108,10 +109,10 @@ float OcclusionFunction(float distZ /* 入参是目标点p和遮蔽点r的深度
 	//               |           |            \
 	//  ------|------|-----------|-------------|---------|--> zv
 	//        0     Eps          z0            z1        
-	//
+	//        0   Epsilon     FadeStart      FadeEnd
 	
-    float occlusion = 0.0f;// 遮蔽值
-    if (distZ > gSurfaceEpsilon)// 目标点p和r点的深度差过大,大于用户自定义的阈值的话
+    float occlusion = 0.0f;// 声明一个遮蔽值
+    if (distZ > gSurfaceEpsilon)// 若pr两点深度差过大, 即大于用户定义的容忍阈值
     {
         float fadeLength = gOcclusionFadeEnd - gOcclusionFadeStart;
 		
@@ -126,6 +127,7 @@ float OcclusionFunction(float distZ /* 入参是目标点p和遮蔽点r的深度
  * 由于与v同起点共方向的射线也经过点P,所以必定存在一个比例t,满足P=tv,P和V的深度也满足这个比例,所以推导出 P == (Pz / Vz) v
  * 供给像素着色器用并负责"重建点p位于观察空间位置(从Zndc重建回观察空间)"的函数逻辑如下
  */
+/* 此函数负责把某个点的深度 从NDC空间重建到 观察空间*/
 float NdcDepthToViewDepth(float z_ndc/*深度图里某像素位于NDC空间的深度*/)
 {
 	/* 我们可以执行 把z坐标(深度)从NDC空间变换至View Space的逆运算,
@@ -142,10 +144,11 @@ float4 PS(VertexOut pin) : SV_Target
 	// n -- 点p处的法向量 n
 	// q -- 随机偏离于点p的一点 q (p为球心的半球内的随机点q)
 	// r -- 有概率遮挡住p的某个点 r
+    
+    // 以quad里6个角点的UV为依据, 采样法线贴图以获取像素的法线
+    float3 n = normalize(gNormalMap.SampleLevel(gsamPointClamp, pin.TexC, 0.0f).xyz);
 
-	
-	/* 先拿取此像素位于 ViewSpace里的法线 以及 深度坐标*/
-    float3 n = normalize(gNormalMap.SampleLevel(gsamPointClamp, pin.TexC, 0.0f).xyz);// 以quad里6个角点的UV为依据, 采样法线贴图以获取像素的法线
+    /* 先拿取此像素位于 ViewSpace里的法线 以及 深度坐标*/
     float pz = gDepthMap.SampleLevel(gsamDepthMap, pin.TexC, 0.0f).r;                // 以quad里6个角点的UV为依据,先从深度图里获取该像素在NDC空间里的z坐标(即深度值): Zndc,即Pz(位于NDC空间)
     pz = NdcDepthToViewDepth(pz);													 // 计算出p点在观察空间里的深度
 
@@ -153,6 +156,7 @@ float4 PS(VertexOut pin) : SV_Target
 	/* 这一步负责 计算出 p点在观察空间的3D位置*/
     float3 p = (pz / pin.PosV.z) * pin.PosV; // pz是p点在观察空间的深度, pin.PosV.z是近裁剪面上那个角点的深度, pin.PosV是观察点(眼睛)指向近裁剪面上的角点构成的向量"v"
 	
+    /* 这一步负责 采样随即向量图 gRandomVecMap并从[0,1]映射至[-1, 1] 以获取随机向量*/
 	// 从随机向量图里变换并拿到随机向量 并从 [0,1] 映射到--> [-1, +1]来模拟反射效果; 以此得到专供那14个偏移向量
     float3 randVecN = 2.0f * gRandomVecMap.SampleLevel(gsamLinearWrap, 4.0f * pin.TexC, 0.0f).rgb - 1.0f;
 
@@ -182,6 +186,7 @@ float4 PS(VertexOut pin) : SV_Target
         float4 projQ = mul(float4(q, 1.0f), gProjTex /*负责投影 q点 到 p所在物体 上落成1个 r点*/);
         projQ /= projQ.w;
 
+        /* 这一步负责 以点q的"投影纹理坐标"为依据 采样深度图 gDepthMap获得r点深度(NDC), 并把r点深度重建到观察空间*/
 		// 沿着从眼睛到q的观察方向,查找离眼睛最近的深度值(它未必是q的深度值,因为q只是接近于p的任意一点,q处有概率是空气而非实体)
 		// 为此,就必须查看那个点在深度图中的深度值
         float rz = gDepthMap.SampleLevel(gsamDepthMap, projQ.xy, 0.0f).r;// 结合点q的投影纹理坐标, 采样深度图取得符合条件的点r深度,点r此时还处在NDC空间
@@ -195,7 +200,7 @@ float4 PS(VertexOut pin) : SV_Target
 		
 		//
 		// 测试 "潜在的遮蔽点r" 是否遮挡着像素点p
-		// 点积dot( n, normalize(r-p) )表示是遮蔽点r距离平面(p,n)前侧的距离,
+		// 点积dot( n, normalize(r-p) ) 负责度量 遮蔽点r距离平面(p,n)前侧的距离,
 		// 越趋近于此平面前侧,就给设定一个更大的遮蔽权重,(也有额外的好处,减缓倾斜面(p,n)上的某点r的自阴影诱发出来的错误遮蔽值)
 		// 遮蔽权重依赖于 遮蔽点r和其目标点p的距离,距离过大则视作点r完全不会遮蔽点p
         float distZ = p.z - r.z;// p点和r点的深度差

@@ -61,7 +61,7 @@ struct SsaoConstants
 };
 
 /* 单帧的结构化材质*/
-struct MaterialData
+struct StructedMaterialInSingleFrame
 {
 	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };// 单帧结构化材质里 持有1个漫反照率
 	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };		 // 单帧结构化材质里 持有1个菲涅尔系数(就是施利克公式里的RF(0°))(和粗糙度一起用于控制镜面光)
@@ -101,7 +101,7 @@ public:
 	std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;// 每帧都要有自己的ObjectCB
 	std::unique_ptr<UploadBuffer<SsaoConstants>> SsaoCB = nullptr;// 每帧都要有自己 SSAO效果的CB
 
-	std::unique_ptr<UploadBuffer<MaterialData>> MaterialBuffer = nullptr;// 每帧都要有自己的结构化材质
+	std::unique_ptr<UploadBuffer<StructedMaterialInSingleFrame>> MaterialSB = nullptr;// 每帧都要有自己的结构化材质
 
 	UINT64 Fence = 0;// 每帧都有自己的围栏,用以检测CPU\GPU的交互与同步
 };

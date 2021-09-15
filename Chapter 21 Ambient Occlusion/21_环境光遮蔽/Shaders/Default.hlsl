@@ -101,7 +101,7 @@ float4 PS(VertexOut pin) : SV_Target
 	
     /* 这一步负责得到 世界空间的法线(从切空间变换至世界空间)*/
     float4 normalMapSample = gTextureMaps[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC); // 各向异性采样 纹理数组中的2D法线纹理 得到 法线图
-    float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb/*法线图的rgb颜色*/, pin.NormalW/*世界空间法线*/, pin.TangentW/*世界空间切线*/); // 把这张法线图里的法线值从切空间变换到世界空间
+    float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb/*法线图的rgb分量*/, pin.NormalW/*世界空间法线*/, pin.TangentW/*世界空间切线*/); // 把这张法线图里的法线值从切空间变换到世界空间
 
 	// 解注释此行来 禁用法线纹理,并直接改用顶点里的法线
     //bumpedNormalW = pin.NormalW;

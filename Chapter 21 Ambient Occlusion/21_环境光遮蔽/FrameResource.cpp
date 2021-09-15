@@ -10,7 +10,7 @@ FrameResource::FrameResource(ID3D12Device* device, UINT passCount, UINT objectCo
 
     PassCB = std::make_unique<UploadBuffer<PassConstants>>(device, passCount, true);// 构建 passCount个数量的 PassCB上传堆
     SsaoCB = std::make_unique<UploadBuffer<SsaoConstants>>(device, 1, true);// 构建存有 1个数量的 SsaoCB上传堆 
-	MaterialBuffer = std::make_unique<UploadBuffer<MaterialData>>(device, materialCount, false);// 构建存有 materialCount数量的 上传堆Buffer
+    MaterialSB = std::make_unique<UploadBuffer<StructedMaterialInSingleFrame>>(device, materialCount, false);// 构建存有 materialCount数量的 上传堆Buffer
     ObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(device, objectCount, true);// 构建存有objectCount数量的 上传堆buffer
 }
 
