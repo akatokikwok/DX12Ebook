@@ -1080,7 +1080,7 @@ void SsaoApp::BuildShapeGeometry()
 	/* 开辟等值于顶点数的 "全局顶点数组"用以保存全局顶点缓存*/
 	std::vector<Vertex> vertices(totalVertexCount);
 
-	/* 给全局顶点数组里的各关联几何体的区间顶点段 做值*/
+	/* 在全局顶点区间vertices 的末尾依次注册 注册 box、grid、sphere、cylinder、quad的顶点数组(及属性字段)*/
 	UINT k = 0;// k用来给全局顶点划分区间段的
 	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)// 方块盒区间
 	{
@@ -1118,8 +1118,8 @@ void SsaoApp::BuildShapeGeometry()
 		vertices[k].TangentU = quad.Vertices[i].TangentU;
 	}
 
-	/* 给全局索引数组里的各关联几何体的区间索引段 做值*/
-	std::vector<std::uint16_t> indices;
+	/* 在全局索引区间indices 的末尾依次 注册 box、grid、sphere、cylinder、quad的索引数组*/
+	std::vector<std::uint16_t> indices;// indices是全局索引区间
 	indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
 	indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
 	indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
@@ -1165,8 +1165,8 @@ void SsaoApp::BuildSkullGeometry()
 		return;
 	}
 
-	UINT vcount = 0;// 用以保存骷髅头顶点数
-	UINT tcount = 0;// 用以保存骷髅头三角形数
+	UINT vcount = 0;// 用以保存 骷髅头几何体 顶点数
+	UINT tcount = 0;// 用以保存 骷髅头几何体 三角形数
 	std::string ignore;
 
 	fin >> ignore >> vcount;//读取vertexCount并赋值

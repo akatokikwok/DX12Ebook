@@ -57,15 +57,12 @@ public:
 		DirectX::XMFLOAT2 TexC;
 	};
 
-	/* MeshData是一个嵌套在GeometryGenerator类里用于存储顶点\索引表的简易结构体
+	/* MeshData是嵌套在几何生成器的返回值结构体,用以保存任意形状几何体的 单体vertices/indices
 	* MeshData结构体存有顶点数组\索引数组
 	* 此结构体通常被拿来构造 模型几何体
 	*/
 	struct MeshData
 	{
-		std::vector<Vertex> Vertices;// MeshData结构体里的 顶点数组
-		std::vector<uint32> Indices32;// MeshData结构体里的 索引数组
-
 		/* 构建1个uint16型的索引数组*/
 		std::vector<uint16>& GetIndices16()
 		{
@@ -77,9 +74,11 @@ public:
 
 			return mIndices16;
 		}
-
+	public:
+		std::vector<Vertex> Vertices; // 几何生成器的返回值MeshData里持有1个 顶点数组
+		std::vector<uint32> Indices32;// 几何生成器的返回值MeshData里持有1个 索引数组
 	private:
-		std::vector<uint16> mIndices16;
+		std::vector<uint16> mIndices16;// 专门负责把索引数组转成 uint16型
 	};
 
 	///<summary>
