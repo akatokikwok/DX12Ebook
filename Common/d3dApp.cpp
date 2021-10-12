@@ -9,6 +9,8 @@ using Microsoft::WRL::ComPtr;
 using namespace std;
 using namespace DirectX;
 
+D3DApp* D3DApp::mApp = nullptr;// 静态单例类外初始化
+
 LRESULT CALLBACK
 MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -17,7 +19,6 @@ MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return D3DApp::GetApp()->MsgProc(hwnd, msg, wParam, lParam);
 }
 
-D3DApp* D3DApp::mApp = nullptr;
 D3DApp* D3DApp::GetApp()
 {
 	return mApp;
@@ -133,40 +134,43 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 
 void D3DApp::OnResize()
 {
+	// 先断言设备、交换链、分配器的合理性
 	assert(md3dDevice);
 	assert(mSwapChain);
 	assert(mDirectCmdListAlloc);
 
-	// Flush before changing any resources.
+	// 在任意的流水线资源变更之前要刷新一次围栏队列.
 	FlushCommandQueue();
-
+	// 重置命令列表
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	// Release the previous resources we will be recreating.
-	for (int i = 0; i < SwapChainBufferCount; ++i)
+	// 重置释放后台缓存和深度模板缓存
+	for (int i = 0; i < SwapChainBufferCount; ++i) {
 		mSwapChainBuffer[i].Reset();
+	}
 	mDepthStencilBuffer.Reset();
 
-	// Resize the swap chain.
+	// Resize整个交换链
 	ThrowIfFailed(mSwapChain->ResizeBuffers(
 		SwapChainBufferCount,
 		mClientWidth, mClientHeight,
 		mBackBufferFormat,
 		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
-
+	// 刷新当前后台缓存序数为0.
 	mCurrBackBuffer = 0;
 
+	/// 创建RTV并偏移到目标CPU句柄地址
 	/* =====7. 为交换链里每个后台缓存创建渲染目标视图句柄 并 偏移到下一个句柄*/
 	// CD3D12构造函数利用给定的偏移值可以查找到当前backbuffer的RTV
 	// 使用CD3D12构造一个描述符句柄,供给后续创造RTV的时机用
 	// (原则上允许可以尝试创建另一个纹理,再为它创建RTV,然后绑定到流水线的OM阶段)
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());//是一个视图句柄
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());// RTV堆里取出第1个CPU句柄作偏移用
 	// 遍历查找交换链里每一个缓冲
 	for (UINT i = 0; i < SwapChainBufferCount; i++) {
 		// 拿到交换链内部第i个缓冲
 		ThrowIfFailed(mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i])));
 		// 为这i号缓冲创建RTV
-		md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
+		md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle/*目标句柄地址*/);
 		// 以RTV增量偏移到视图堆里的下1个视图句柄
 		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
 	}
@@ -203,30 +207,32 @@ void D3DApp::OnResize()
 	/// 填充专门的"深度模板描述符" 结构体; 并利用深度模板缓存描述符 为深度模板缓存资源的第0层mip层创建描述符
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;// 维度是2D
 	dsvDesc.Format = mDepthStencilFormat;
 	dsvDesc.Texture2D.MipSlice = 0;
-	/* 创建出深度模板视图句柄(类似于创建渲染目标视图),他需要借助 深度模板资源*/
+	/* 利用刚创建出的深度模板缓存资源 再去创建出DSV(类似于创建渲染目标视图),他需要借助 深度模板资源*/
 	md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
+
 	/// 利用资源屏障把深度模板缓冲从 初始COMMON状态 切换为 读写状态
 	mCommandList->ResourceBarrier(
 		1,
-		&CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE)
+		&CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(), 
+			D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE)
 	);
 
-	// Execute the resize commands.
+	// 关闭命令记录,组建命令数组并打到队列里执行
 	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-	// Wait until resize is complete.
+	// 强制CPU等待GPU
 	FlushCommandQueue();
 
-	/* =====9. 设置视口*/
+	/* =====9. OnResize的时候也要记住 设置视口*/
 	mScreenViewport.TopLeftX = 0;
 	mScreenViewport.TopLeftY = 0;
-	mScreenViewport.Width = static_cast<float>(mClientWidth);
-	mScreenViewport.Height = static_cast<float>(mClientHeight);
+	mScreenViewport.Width = static_cast<float>(mClientWidth);  // 视口宽设为后台缓存宽
+	mScreenViewport.Height = static_cast<float>(mClientHeight);// 视口高设为后台缓存高
 	// PS!!注意利用minDepth和maxDepth转化归一化的深度值就可以实现某些特效, 设置这两个值为0, 表明位于此视口3D场景比其他3D更加靠前
 	mScreenViewport.MinDepth = 0.0f;
 	mScreenViewport.MaxDepth = 1.0f;
@@ -356,11 +362,12 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
+/// 初始化应用程序的主窗口,与Windows编程有关
 bool D3DApp::InitMainWindow()
 {
 	WNDCLASS wc;
 	wc.style = CS_HREDRAW | CS_VREDRAW;
-	wc.lpfnWndProc = MainWndProc;
+	wc.lpfnWndProc = MainWndProc;// 处理窗口消息的函数指针, 里面调用了本类的MsgProc()函数
 	wc.cbClsExtra = 0;
 	wc.cbWndExtra = 0;
 	wc.hInstance = mhAppInst;

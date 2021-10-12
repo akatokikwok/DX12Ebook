@@ -1,11 +1,5 @@
 ﻿//***************************************************************************************
-// Camera.h by Frank Luna (C) 2011 All Rights Reserved.
-//   
-// Simple first person style camera class that lets the viewer explore the 3D scene.
-//   -It keeps track of the camera coordinate system relative to the world space
-//    so that the view matrix can be constructed.  
-//   -It keeps track of the viewing frustum of the camera so that the projection
-//    matrix can be obtained.
+// 关注2种东西:一种是 观察坐标系的原点,xyz轴; 第二种是摄像机的视锥体  
 //***************************************************************************************
 
 #ifndef CAMERA_H
@@ -80,17 +74,17 @@ private:
 	DirectX::XMFLOAT3 mUp = { 0.0f, 1.0f, 0.0f };// y
 	DirectX::XMFLOAT3 mLook = { 0.0f, 0.0f, 1.0f };// z
 
-	// Cache frustum properties.
+	// 有关视锥体的属性
 	float mNearZ = 0.0f;
 	float mFarZ = 0.0f;
 	float mAspect = 0.0f;
 	float mFovY = 0.0f;
-	float mNearWindowHeight = 0.0f;
-	float mFarWindowHeight = 0.0f;
+	float mNearWindowHeight = 0.0f;// 近裁剪面高度 = 2 * tan(mFovY) * mNearZ
+	float mFarWindowHeight = 0.0f; // 远裁剪面高度 = 2 * tan(mFovY) * mFarZ
 
 	bool mViewDirty = true;
 
-	// Cache View/Proj matrices.
+	// 缓存观察矩阵 与 投影矩阵
 	DirectX::XMFLOAT4X4 mView = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 mProj = MathHelper::Identity4x4();
 };

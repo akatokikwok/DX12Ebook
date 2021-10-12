@@ -29,7 +29,7 @@ protected:
 	virtual ~D3DApp();
 
 public:
-	/* 拿取类静态指针*/
+	/* 静态单例接口*/
 	static D3DApp* GetApp();
 	/* 拿应用句柄*/
 	HINSTANCE AppInst()const;
@@ -96,7 +96,7 @@ protected:
 
 protected:
 
-	static D3DApp* mApp;// D3DApp类静态指针
+	static D3DApp* mApp;// D3DApp类静态单例
 
 	HINSTANCE mhAppInst = nullptr; // 应用程序句柄
 	HWND      mhMainWnd = nullptr; // 主窗口句柄
@@ -143,7 +143,7 @@ protected:
 	D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
 	DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;// 后台缓存格式
 	DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;// 用以填充清除值的深度模板格式
-	int mClientWidth = 800;
-	int mClientHeight = 600;
+	int mClientWidth = 800; // 后台缓存宽
+	int mClientHeight = 600;// 后台缓存高
 };
 

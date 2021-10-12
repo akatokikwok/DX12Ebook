@@ -195,14 +195,15 @@ bool CameraAndDynamicIndexingApp::Initialize()
  
 void CameraAndDynamicIndexingApp::OnResize()
 {
+	// 注意先调用一次基类的
     D3DApp::OnResize();
-	// 当窗口大小改变的时候不再需要之前那些字段了,而是改用摄像机类的SetLens接口
+	// 当窗口大小改变的时候不再需要之前那些字段了,而是改用摄像机类的SetLens接口,去设置视锥体
 	mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 }
 
 void CameraAndDynamicIndexingApp::Update(const GameTimer& gt)
 {
-    OnKeyboardInput(gt);
+    OnKeyboardInput(gt);// 每帧都处理键盘按键事件
 
     // Cycle through the circular frame resource array.
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
@@ -221,7 +222,7 @@ void CameraAndDynamicIndexingApp::Update(const GameTimer& gt)
 	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
 	UpdateMaterialBuffer(gt);
-	UpdateMainPassCB(gt);
+	UpdateMainPassCB(gt);// 每帧都更新主Pass
 }
 
 void CameraAndDynamicIndexingApp::Draw(const GameTimer& gt)
@@ -307,7 +308,7 @@ void CameraAndDynamicIndexingApp::OnMouseUp(WPARAM btnState, int x, int y)
 
 void CameraAndDynamicIndexingApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-    if((btnState & MK_LBUTTON) != 0)
+    if((btnState & MK_LBUTTON) != 0)// 当且仅当左键按下才会俯仰/偏航 摄像机
     {
 		// Make each pixel correspond to a quarter of a degree.
 		float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
@@ -321,6 +322,7 @@ void CameraAndDynamicIndexingApp::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 }
  
+/// 处理键盘事件
 void CameraAndDynamicIndexingApp::OnKeyboardInput(const GameTimer& gt)
 {
 	const float dt = gt.DeltaTime();
@@ -399,6 +401,7 @@ void CameraAndDynamicIndexingApp::UpdateMaterialBuffer(const GameTimer& gt)
 
 void CameraAndDynamicIndexingApp::UpdateMainPassCB(const GameTimer& gt)
 {
+	// 缓存相机观察矩阵和投影矩阵
 	XMMATRIX view = mCamera.GetView();
 	XMMATRIX proj = mCamera.GetProj();
 
