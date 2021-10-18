@@ -4,7 +4,7 @@
 #include "../../Common/MathHelper.h"
 #include "../../Common/UploadBuffer.h"
 
-/// 帧资源里的实例结构体buffer
+/// 帧资源里的实例结构体buffer, 取代原有的CbPerObject(ObjectConstants)
 struct InstanceData
 {
 	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();          // 单个实例mesh的位置

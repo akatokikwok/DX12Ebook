@@ -16,10 +16,9 @@ using namespace DirectX::PackedVector;
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "D3D12.lib")
 
-const int gNumFrameResources = 3;
+const int gNumFrameResources = 3;// 默认定义3个帧资源
 
-// Lightweight structure stores parameters to draw a shape.  This will
-// vary from app-to-app.
+/// 实例化技术需要用到的渲染项
 struct RenderItem
 {
 	RenderItem() = default;
@@ -28,33 +27,35 @@ struct RenderItem
 	// World matrix of the shape that describes the object's local space
 	// relative to the world space, which defines the position, orientation,
 	// and scale of the object in the world.
-	XMFLOAT4X4 World = MathHelper::Identity4x4();
+	XMFLOAT4X4 World = MathHelper::Identity4x4();// 某物体要用到的世界变换矩阵
 
-	XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
+	XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();// 某物体要用到的纹理变换矩阵
 
 	// Dirty flag indicating the object data has changed and we need to update the constant buffer.
 	// Because we have an object cbuffer for each FrameResource, we have to apply the
 	// update to each FrameResource.  Thus, when we modify obect data we should set 
 	// NumFramesDirty = gNumFrameResources so that each frame resource gets the update.
-	int NumFramesDirty = gNumFrameResources;
+	int NumFramesDirty = gNumFrameResources;// Update入口里会用到的更新标志
 
 	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
-	UINT ObjCBIndex = -1;
+	UINT ObjCBIndex = -1;// ObjectCB渲染项要画的第几个物体(即GPU中常数缓存的索引)
 
-	Material* Mat = nullptr;
-	MeshGeometry* Geo = nullptr;
+	Material* Mat = nullptr;// 本此渲染项的材质
+	
+	MeshGeometry* Geo = nullptr;// 本次渲染项的几何体
 
 	// Primitive topology.
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
+	/* 这是新增的2个变量*/
 	BoundingBox Bounds;// 单个渲染项里的包围体; DirectxCollison库里提供的包围盒,是盒子中心与扩展向量组合的表达形式,公式是c=0.5(Vmin+Vmax), e=0.5(Vmax-Vmin)
-	std::vector<InstanceData> Instances;// 渲染项里持有的一组实例(允许大容量); 渲染项里持有实例化次数
+	std::vector<InstanceData> Instances;// 本次渲染项里持有的一组实例化数据; InstanceData等价于ObjectConstants; 渲染项里持有的一组实例(允许大容量); 渲染项里持有实例化次数
 
-	// DrawIndexedInstanced parameters.
+	// 绘制三参数(但本工程再补1个 "要被实例化技术操作的实例数量").
 	UINT IndexCount = 0;
-	UINT InstanceCount = 0;// 实例数量; 可能在Update入口里更新
 	UINT StartIndexLocation = 0;
 	int BaseVertexLocation = 0;
+	UINT InstanceCount = 0;// 实例数量; 可能在Update入口里更新
 };
 
 class InstancingAndCullingApp : public D3DApp
@@ -97,37 +98,30 @@ private:
 
 private:
 
-	std::vector<std::unique_ptr<FrameResource>> mFrameResources;
-	FrameResource* mCurrFrameResource = nullptr;
-	int mCurrFrameResourceIndex = 0;
+	std::vector<std::unique_ptr<FrameResource>> mFrameResources;// 帧资源数组
+	FrameResource* mCurrFrameResource = nullptr;				// 当前帧资源
+	int mCurrFrameResourceIndex = 0;							// 当前帧资源序数
 
-	UINT mCbvSrvDescriptorSize = 0;
+	UINT mCbvSrvDescriptorSize = 0;// 邻接尺寸,用以偏移CPU句柄用(详见BuildDescriptorHeaps函数)
+	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;// 根签名
+	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;// 用来放SRV的堆(详见BuildDescriptorHeaps函数)
 
-	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-
-	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
-
-	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
-	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
-	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
-	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
-	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
-
-	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
-
-	// List of all the render items.
-	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
+	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;// 全局几何体表
+	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;	   // 全局材质表
+	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;	   // 全局贴图表
+	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;				   // 全局Shader表
+	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;		   // 全局管线表
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;						   // 输入布局
+	std::vector<std::unique_ptr<RenderItem>> mAllRitems;					   // 全局渲染项
 
 	// Render items divided by PSO.
-	std::vector<RenderItem*> mOpaqueRitems;
+	std::vector<RenderItem*> mOpaqueRitems;// "非透明"渲染层级组
 
-	UINT mInstanceCount = 0;
-
+	UINT mInstanceCount = 0;// 采用实例化技术处理的实例数量
 	bool mFrustumCullingEnabled = true;
+	BoundingFrustum mCamFrustum;// 相机视锥体
 
-	BoundingFrustum mCamFrustum;
-
-	PassConstants mMainPassCB;
+	PassConstants mMainPassCB;// 主Pass;目前仅1个主PASS,日后可能会增加阴影Pass
 
 	Camera mCamera;
 
@@ -174,11 +168,11 @@ bool InstancingAndCullingApp::Initialize()
 	// Reset the command list to prep for initialization commands.
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	// Get the increment size of a descriptor in this heap type.  This is hardware specific, 
-	// so we have to query this information.
+	// Get the increment size of a descriptor in this heap type.  This is hardware specific, so we have to query this information.
+	// 获取cbv描述符增量更新的尺寸
 	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
+	mCamera.SetPosition(0.0f, 2.0f, -15.0f);// 摄像机给个初始位置
 
 	LoadTextures();
 	BuildRootSignature();
@@ -541,19 +535,20 @@ void InstancingAndCullingApp::BuildRootSignature()
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7, 0, 0);
 	// 根参数各个成员初始化, 按变更频率从高到低排序
 	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
-	slotRootParameter[0].InitAsShaderResourceView(0, 1); // 管线上绑定的0号是 实例的结构化buffer
-	slotRootParameter[1].InitAsShaderResourceView(1, 1);// 管线上绑定的1号是 材质的结构化buffer
-	slotRootParameter[2].InitAsConstantBufferView(0);// 管线上绑定的2号是 PASSCB
+	slotRootParameter[0].InitAsShaderResourceView(0, 1);// 管线上绑定的0号是 实例的结构化buffer--gInstanceData : register(t0, space1)
+	slotRootParameter[1].InitAsShaderResourceView(1, 1);// 管线上绑定的1号是 材质的结构化buffer--gMaterialData : register(t1, space1)
+	slotRootParameter[2].InitAsConstantBufferView(0);	// 管线上绑定的2号是 cbPass : b(0)
 	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);// 管线上绑定的3号是持有7个元素的纹理数组
 
+	// 拿采样器集合
 	auto staticSamplers = GetStaticSamplers();
 
-	// A root signature is an array of root parameters.
+	// root signature关联根参数
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	// root signature结合Blob内存块创建出需要的场景用根签名
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
@@ -563,7 +558,7 @@ void InstancingAndCullingApp::BuildRootSignature()
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	}
 	ThrowIfFailed(hr);
-
+	// 最终创建出根签名
 	ThrowIfFailed(md3dDevice->CreateRootSignature(
 		0,
 		serializedRootSig->GetBufferPointer(),

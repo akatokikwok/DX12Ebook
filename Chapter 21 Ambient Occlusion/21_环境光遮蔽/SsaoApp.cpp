@@ -31,16 +31,16 @@ const int gNumFrameResources = 3;
 /// SSAO工程要用到的渲染项
 struct RenderItem
 {
-	RenderItem() = default;
-	RenderItem(const RenderItem& rhs) = delete;
+	RenderItem() = default;// 使用默认构造器
+	RenderItem(const RenderItem& rhs) = delete;// 禁用拷贝构造
 
-	XMFLOAT4X4 World = MathHelper::Identity4x4();// 世界矩阵(包含物体的位置、朝向、缩放)
-	XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();// 每个渲染项都持有 单物体独有的纹理变换矩阵
-	int NumFramesDirty = gNumFrameResources;// 每个渲染项都持有 帧Dirty标记，表示对象数据已经改变，需要更新常量缓冲区;设置NumFramesDirty = gNumFrameResources，以便每个帧资源获得更新
-	UINT ObjCBIndex = -1;// 每个渲染项都持有 单物体位于GPU的CB索引，也同时对应于这个渲染项的ObjectCB。
-	Material* Mat = nullptr;// 每个渲染项都持有 1个材质
-	MeshGeometry* Geo = nullptr;// 每个渲染项都持有 1个几何管理员
-	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;// 每个渲染项都持有图元类型,默认为三角形列表
+	XMFLOAT4X4 World = MathHelper::Identity4x4();       // 本次渲染项的--本物体的 世界矩阵(包含物体的位置、朝向、缩放)
+	XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();// 本次渲染项的--本物体的 独有纹理变换矩阵
+	int NumFramesDirty = gNumFrameResources;            // 本次渲染项的--帧Dirty标记，表示对象数据已经改变，需要更新常量缓冲区;设置NumFramesDirty = gNumFrameResources，以便每个帧资源获得更新
+	UINT ObjCBIndex = -1;								// 本次渲染项的--单物体位于GPU的CB索引，也同时对应于这个渲染项的ObjectCB
+	Material* Mat = nullptr;							// 本次渲染项的--本物体使用的 材质
+	MeshGeometry* Geo = nullptr;						// 本次渲染项的--本物体使用的 几何管理员
+	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;// 本次渲染项的-- 持有图元类型,默认为三角形列表
 
 	/* 每个渲染项都持有绘制三参数(分别是索引数、起始索引、基准地址)*/
 	UINT IndexCount = 0;        // 绘制三参数之索引数
@@ -124,16 +124,14 @@ private:
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;  // SRV堆,本项目中持有18个句柄
 
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries; // 全局几何体表
-	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;		// 全局材质表		
+	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;		// 全局材质表
 	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;		// 全局贴图表
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;					// 全局Shader表
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;			// 全局管线表
-
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;							// 输入布局
-
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;						// 全局渲染项
 
-	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];				// 由PSO来划分的渲染项层级数组
+	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];				// 由PSO来划分的渲染项层级组
 
 	/* 用以保存每个物体在SRV堆中的索引*/
 	UINT mSkyTexHeapIndex = 0;			
