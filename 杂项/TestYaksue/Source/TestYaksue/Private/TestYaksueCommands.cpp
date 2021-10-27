@@ -1,4 +1,5 @@
 ﻿#include "TestYaksueCommands.h"
+#include "TestYaksueStyle.h"
 
 #define LOCTEXT_NAMESPACE "FTestYaksueModule"
 
@@ -13,7 +14,8 @@ FTestYaksueCommands::FTestYaksueCommands()
 		"TestYaksueCommands",
 		NSLOCTEXT("Contexts", "TestYaksueCommands", "TestYaksue Plugin"),
 		NAME_None,
-		FName(*FString("todo"))
+		//FName(*FString("todo"))
+		FTestYaksueStyle::GetStyleSetName()// 在FTestYaksueCommands的构造函数中将这个Style的名字传进来
 		)
 {
 	//UI_COMMAND(CommandA, "TestYaksueCommandA", "Execute TestYaksue CommandA", EUserInterfaceActionType::Button, FInputChord());
@@ -27,10 +29,10 @@ FTestYaksueCommands::FTestYaksueCommands()
 /************************************************************************/
 void FTestYaksueCommands::RegisterCommands()
 {
-	UI_COMMAND(CommandA, "TestYaksueCommandA+++ 名字", "TestYaksueCommandA+++的动作注释", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Shift | EModifierKey::Alt, EKeys::Z)/*最后一个参数是快捷键*/);
+	UI_COMMAND(CommandA, "TestYaksueCommandA 名字", "TestYaksueCommandA这条命令的Desc", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Shift | EModifierKey::Alt, EKeys::Z)/*最后一个参数是快捷键*/);
 
 	// 除了关卡编辑器，“内容浏览器”也有类似的FUICommandList。它在触发命令的时候还可以知道所选择的资源是哪些
-	UI_COMMAND(CommandB, "TestYaksueCommandB", "Execute TestYaksue CommandB", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Shift | EModifierKey::Alt, EKeys::X));
+	UI_COMMAND(CommandB, "TestYaksueCommandB 名字", "TestYaksueCommandB这条命令的Desc", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Shift | EModifierKey::Alt, EKeys::X));
 }
 
 #undef LOCTEXT_NAMESPACE

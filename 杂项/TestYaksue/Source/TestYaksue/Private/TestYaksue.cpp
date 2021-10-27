@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+ï»¿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TestYaksue.h"
 #include "TestYaksue/Private/TestYaksueCommands.h"
@@ -8,6 +8,7 @@
 #include "LevelEditor.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "ContentBrowserModule.h"
+#include "TestYaksueStyle.h"
 
 #define LOCTEXT_NAMESPACE "FTestYaksueModule"
 
@@ -15,18 +16,23 @@ void FTestYaksueModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 
+	//åˆå§‹åŒ–Style
+	FTestYaksueStyle::Initialize();
+	FTestYaksueStyle::ReloadTextures();
+
+
 	/**
-	 * RegisterÊÇTCommandsµÄ½Ó¿Ú¡£ÓÃÀ´×¢²áÃüÁî£¬Í¨³£ÔÚÄ£¿éµÄÆô¶¯º¯ÊıÖĞµ÷ÓÃ¡£
-	 * ¹Û²ìËüµÄÊµÏÖ¿É¿´µ½ÄÚ²¿µ÷ÓÃÁËRegisterCommandsº¯Êı
+	 * Registeræ˜¯TCommandsçš„æ¥å£ã€‚ç”¨æ¥æ³¨å†Œå‘½ä»¤ï¼Œé€šå¸¸åœ¨æ¨¡å—çš„å¯åŠ¨å‡½æ•°ä¸­è°ƒç”¨ã€‚
+	 * è§‚å¯Ÿå®ƒçš„å®ç°å¯çœ‹åˆ°å†…éƒ¨è°ƒç”¨äº†RegisterCommandså‡½æ•°
 	 */
 	FTestYaksueCommands::Register();
 
 	/**
-	 * ½èÖúUICommandListÈÃ TCommandsºÍ²Ù×÷action Ö´ĞĞ¹ØÁª°ó¶¨
+	 * å€ŸåŠ©UICommandListè®© TCommandså’Œæ“ä½œaction æ‰§è¡Œå…³è”ç»‘å®š
 	 */
-	 //´´½¨UICommandList,½èÖúÕâ¸öUICommandList¹ÜÀí 'Ä³ÃüÁîµÄÊµÏÖĞ§¹û'
+	 //åˆ›å»ºUICommandList,å€ŸåŠ©è¿™ä¸ªUICommandListç®¡ç† 'æŸå‘½ä»¤çš„å®ç°æ•ˆæœ'
 	PluginCommandList = MakeShareable(new FUICommandList);
-	//ÎªÃüÁîÓ³Éä²Ù×÷; °Ñ ÃüÁî'CommandA'Óë²Ù×÷'CommandAAction'Ïà¹ØÁª
+	//ä¸ºå‘½ä»¤æ˜ å°„æ“ä½œ; æŠŠ å‘½ä»¤'CommandA'ä¸æ“ä½œ'CommandAAction'ç›¸å…³è”
 	PluginCommandList->MapAction(
 		FTestYaksueCommands::Get().CommandA,
 		FExecuteAction::CreateRaw(this, &FTestYaksueModule::CommandAAction),
@@ -34,13 +40,13 @@ void FTestYaksueModule::StartupModule()
 	);
 
 	/**
-	 * À©Õ¹¹Ø¿¨±à¼­Æ÷µÄ²Ëµ¥Óë¹¤¾ßÀ¸
+	 * æ‰©å±•å…³å¡ç¼–è¾‘å™¨çš„èœå•ä¸å·¥å…·æ 
 	 */
-	 //»ñµÃ¹Ø¿¨±à¼­Æ÷Ä£¿é
+	 //è·å¾—å…³å¡ç¼–è¾‘å™¨æ¨¡å—
 	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
-	//À©Õ¹¹Ø¿¨±à¼­Æ÷µÄ²Ëµ¥
+	//æ‰©å±•å…³å¡ç¼–è¾‘å™¨çš„èœå•
 	{
-		TSharedPtr<FExtender> MenuExtender = MakeShareable(new FExtender());// Extender:´òËãÓÃ×÷¹Ø¿¨±à¼­Æ÷µÄ²Ëµ¥
+		TSharedPtr<FExtender> MenuExtender = MakeShareable(new FExtender());// Extender:æ‰“ç®—ç”¨ä½œå…³å¡ç¼–è¾‘å™¨çš„èœå•
 		MenuExtender->AddMenuExtension("WindowLayout"
 			, EExtensionHook::After
 			, PluginCommandList
@@ -49,9 +55,9 @@ void FTestYaksueModule::StartupModule()
 				}));
 		LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(MenuExtender);
 	}
-	//À©Õ¹¹Ø¿¨±à¼­Æ÷µÄ¹¤¾ßÀ¸
+	//æ‰©å±•å…³å¡ç¼–è¾‘å™¨çš„å·¥å…·æ 
 	{
-		TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender());// Extender:´òËãÓÃ×÷¹Ø¿¨±à¼­Æ÷µÄ¹¤¾ßÀ¸
+		TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender());// Extender:æ‰“ç®—ç”¨ä½œå…³å¡ç¼–è¾‘å™¨çš„å·¥å…·æ 
 		ToolbarExtender->AddToolBarExtension("Settings"
 			, EExtensionHook::After
 			, PluginCommandList
@@ -61,24 +67,24 @@ void FTestYaksueModule::StartupModule()
 		LevelEditorModule.GetToolBarExtensibilityManager()->AddExtender(ToolbarExtender);
 	}
 
-	//½«CommandAÌí¼ÓÈë¹Ø¿¨±à¼­Æ÷µÄGlobalLevelEditorActionsÖĞ£¬ÕâÑù¿ÉÒÔ´¥·¢¿ì½İ¼ü
+	//å°†CommandAæ·»åŠ å…¥å…³å¡ç¼–è¾‘å™¨çš„GlobalLevelEditorActionsä¸­ï¼Œè¿™æ ·å¯ä»¥è§¦å‘å¿«æ·é”®
 	/**
-	 * Ò²¾ÍÊÇËµ£¬¹Ø¿¨±à¼­Æ÷µÄFUICommandList½«»áÔÚ¹Ø¿¨±à¼­Æ÷ÄÚ¼ì²âÊÇ·ñÓĞ¿ì½İ¼ü¡£¶øÖ®Ç°ÔÚ¡¾Êµ¼ù£ºÎªÃüÁîÓ³Éä¾ßÌåµÄ²Ù×÷¡¿ÖĞ×Ô¼º´´½¨µÄFUICommandList²¢Ã»ÓĞ¶îÍâµÄ¼ì²â¿ì½İ¼üÊÇ·ñ´¥·¢µÄ»úÖÆ£¬ËùÒÔÃ»ÓĞÈÎºÎ¿ì½İ¼üĞ§¹û
+	 * ä¹Ÿå°±æ˜¯è¯´ï¼Œå…³å¡ç¼–è¾‘å™¨çš„FUICommandListå°†ä¼šåœ¨å…³å¡ç¼–è¾‘å™¨å†…æ£€æµ‹æ˜¯å¦æœ‰å¿«æ·é”®ã€‚è€Œä¹‹å‰åœ¨ã€å®è·µï¼šä¸ºå‘½ä»¤æ˜ å°„å…·ä½“çš„æ“ä½œã€‘ä¸­è‡ªå·±åˆ›å»ºçš„FUICommandListå¹¶æ²¡æœ‰é¢å¤–çš„æ£€æµ‹å¿«æ·é”®æ˜¯å¦è§¦å‘çš„æœºåˆ¶ï¼Œæ‰€ä»¥æ²¡æœ‰ä»»ä½•å¿«æ·é”®æ•ˆæœ
 	 */
 	{
-		TSharedRef<FUICommandList> LevelEditorCommandList = LevelEditorModule.GetGlobalLevelEditorActions();// ÄÃÈ¡¹Ø¿¨±à¼­Æ÷µÄÈ«¾ÖUICommandList
+		TSharedRef<FUICommandList> LevelEditorCommandList = LevelEditorModule.GetGlobalLevelEditorActions();// æ‹¿å–å…³å¡ç¼–è¾‘å™¨çš„å…¨å±€UICommandList
 		LevelEditorCommandList->MapAction(
-			FTestYaksueCommands::Get().CommandA,//ÄÄÌõÃüÁîÊµÀı
-			FExecuteAction::CreateRaw(this, &FTestYaksueModule::CommandAAction),//ÄÄÌõ²Ù×÷Ğ§¹û
+			FTestYaksueCommands::Get().CommandA,//å“ªæ¡å‘½ä»¤å®ä¾‹
+			FExecuteAction::CreateRaw(this, &FTestYaksueModule::CommandAAction),//å“ªæ¡æ“ä½œæ•ˆæœ
 			FCanExecuteAction());
 	}
 
-	/// ÓĞ¹ØÄÚÈİä¯ÀÀÆ÷Ä£¿é
+	/// æœ‰å…³å†…å®¹æµè§ˆå™¨æ¨¡å—
 	{
-		//»ñµÃÄÚÈİä¯ÀÀÆ÷Ä£¿é
-		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));// ÄÚÈİä¯ÀÀÆ÷Ä£¿é
-		//¼ÓÈëÄÚÈİä¯ÀÀÆ÷µÄÃüÁî
-		TArray<FContentBrowserCommandExtender>& CBCommandExtenderDelegates = ContentBrowserModule.GetAllContentBrowserCommandExtenders();// È¡³öËùÓĞExtenderµÄÎ¯ÍĞ,¼´Ò»×éÎ¯ÍĞ
+		//è·å¾—å†…å®¹æµè§ˆå™¨æ¨¡å—
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));// å†…å®¹æµè§ˆå™¨æ¨¡å—
+		//åŠ å…¥å†…å®¹æµè§ˆå™¨çš„å‘½ä»¤
+		TArray<FContentBrowserCommandExtender>& CBCommandExtenderDelegates = ContentBrowserModule.GetAllContentBrowserCommandExtenders();// å–å‡ºæ‰€æœ‰Extenderçš„å§”æ‰˜,å³ä¸€ç»„å§”æ‰˜
 		CBCommandExtenderDelegates.Add(FContentBrowserCommandExtender::CreateLambda([this](TSharedRef<FUICommandList> CommandList, FOnContentBrowserGetSelection GetSelectionDelegate) {
 				CommandList->MapAction(FTestYaksueCommands::Get().CommandB,
 					FExecuteAction::CreateLambda([this, GetSelectionDelegate] {
@@ -89,19 +95,19 @@ void FTestYaksueModule::StartupModule()
 		);
 
 		/**
-		* ÆäËû²Ëµ¥ÍØÕ¹
-		* UE4ÓĞ¶à´¦²Ëµ¥¶¼¿ÉÒÔÍØÕ¹£¬ÀıÈç
+		* å…¶ä»–èœå•æ‹“å±•
+		* UE4æœ‰å¤šå¤„èœå•éƒ½å¯ä»¥æ‹“å±•ï¼Œä¾‹å¦‚
 		*/
-		// Ôö¼ÓÄÚÈİä¯ÀÀÆ÷ÖĞAssetÓÒ¼ü²Ëµ¥
-		TArray<FContentBrowserMenuExtender_SelectedAssets>& CBAssetMenuExtenderDelegates = ContentBrowserModule.GetAllAssetViewContextMenuExtenders();// ´ÓÄÚÈİä¯ÀÀÆ÷Ä£¿éÈ¡³öÒ»¶ÑÓĞ¹ØassetµÄÓÒ¼ü²Ëµ¥Î¯ÍĞ
-		// ×¢Òâ´ËÀàĞÍÎ¯ÍĞÊÇ TSharedRef<FExtender> (const TArray<FAssetData>&)
+		// å¢åŠ å†…å®¹æµè§ˆå™¨ä¸­Assetå³é”®èœå•
+		TArray<FContentBrowserMenuExtender_SelectedAssets>& CBAssetMenuExtenderDelegates = ContentBrowserModule.GetAllAssetViewContextMenuExtenders();// ä»å†…å®¹æµè§ˆå™¨æ¨¡å—å–å‡ºä¸€å †æœ‰å…³assetçš„å³é”®èœå•å§”æ‰˜
+		// æ³¨æ„æ­¤ç±»å‹å§”æ‰˜æ˜¯ TSharedRef<FExtender> (const TArray<FAssetData>&)
 		CBAssetMenuExtenderDelegates.Add(FContentBrowserMenuExtender_SelectedAssets::CreateLambda([](const TArray<FAssetData>& SelectedAssets) {
-			//Ìí¼Ó²Ëµ¥À©Õ¹
+			//æ·»åŠ èœå•æ‰©å±•
 			TSharedRef<FExtender> Extender(new FExtender());
-			Extender->AddMenuExtension(// ÎªÄ³¸öExtender¹ØÁªÒ»Ì×µ¯³öµÄ²Ëµ¥
-				"AssetContextReferences",// "AssetContextReferences"Ö¸¶¨ÁËÃüÁî½«ÒªÌí¼Óµ½µÄ·ÖÀ¸Î»ÖÃ
+			Extender->AddMenuExtension(// ä¸ºæŸä¸ªExtenderå…³è”ä¸€å¥—å¼¹å‡ºçš„èœå•
+				"AssetContextReferences",// "AssetContextReferences"æŒ‡å®šäº†å‘½ä»¤å°†è¦æ·»åŠ åˆ°çš„åˆ†æ ä½ç½®
 				EExtensionHook::First,
-				nullptr,// ¶ønullptr²ÎÊıÎ»ÖÃ±¾À´Ó¦¸ÃÊÇÒ»¸öFUICommandList£¬ÏÖÔÚÉèÖÃÎª¿Õ¡£ÊÇÒòÎªContentBrowserModuleÒÑ¾­ÓµÓĞÒ»¸öFUICommandListÁË£¬ËüÔÚÉÏÒ»²½ÖĞÎªCommandBÓ³Éä¹ı²Ù×÷ÁË
+				nullptr,// è€Œnullptrå‚æ•°ä½ç½®æœ¬æ¥åº”è¯¥æ˜¯ä¸€ä¸ªFUICommandListï¼Œç°åœ¨è®¾ç½®ä¸ºç©ºã€‚æ˜¯å› ä¸ºContentBrowserModuleå·²ç»æ‹¥æœ‰ä¸€ä¸ªFUICommandListäº†ï¼Œå®ƒåœ¨ä¸Šä¸€æ­¥ä¸­ä¸ºCommandBæ˜ å°„è¿‡æ“ä½œäº†
 				FMenuExtensionDelegate::CreateLambda([](FMenuBuilder& MenuBuilder) {
 					MenuBuilder.AddMenuEntry(FTestYaksueCommands::Get().CommandB);
 					})
@@ -113,15 +119,15 @@ void FTestYaksueModule::StartupModule()
 	}
 
 
-	///Ôö¼ÓAsset±à¼­Æ÷ÖĞµÄ²Ëµ¥
+	///å¢åŠ Assetç¼–è¾‘å™¨ä¸­çš„èœå•
 	TArray<FAssetEditorExtender>& AssetEditorMenuExtenderDelegates = FAssetEditorToolkit::GetSharedMenuExtensibilityManager()->GetExtenderDelegates();
 	AssetEditorMenuExtenderDelegates.Add(FAssetEditorExtender::CreateLambda([this](const TSharedRef<FUICommandList> CommandList, const TArray<UObject*> ContextSensitiveObjects) {
-		//Ó³Éä²Ù×÷
+		//æ˜ å°„æ“ä½œ
 		CommandList->MapAction(
 			FTestYaksueCommands::Get().CommandA,
 			FExecuteAction::CreateRaw(this, &FTestYaksueModule::CommandAAction),
 			FCanExecuteAction());
-		//Ìí¼Ó²Ëµ¥À©Õ¹
+		//æ·»åŠ èœå•æ‰©å±•
 		TSharedRef<FExtender> Extender(new FExtender());
 		Extender->AddMenuExtension(
 			"FindInContentBrowser",
@@ -145,7 +151,7 @@ void FTestYaksueModule::ShutdownModule()
 	// we call this function before unloading the module.
 
 	/**
-	 * UnregisterÊÇTCommandsµÄ½Ó¿Ú¡£¸ºÔğÇåÀíËùÓĞºÍÕâ×éÃüÁîÏà¹ØµÄ×ÊÔ´£¬Í¨³£ÔÚÄ£¿éµÄ¹Ø±Õº¯ÊıÖĞ±»µ÷ÓÃ¡£
+	 * Unregisteræ˜¯TCommandsçš„æ¥å£ã€‚è´Ÿè´£æ¸…ç†æ‰€æœ‰å’Œè¿™ç»„å‘½ä»¤ç›¸å…³çš„èµ„æºï¼Œé€šå¸¸åœ¨æ¨¡å—çš„å…³é—­å‡½æ•°ä¸­è¢«è°ƒç”¨ã€‚
 	 */
 	FTestYaksueCommands::Unregister();
 }
@@ -156,20 +162,20 @@ void FTestYaksueModule::CommandAAction()
 	FMessageDialog::Open(EAppMsgType::Ok, FText::FromString("Execute CommandA"));
 }
 
-// ³ıÁË¹Ø¿¨±à¼­Æ÷£¬¡°ÄÚÈİä¯ÀÀÆ÷¡±Ò²ÓĞÀàËÆµÄFUICommandList¡£ËüÔÚ´¥·¢ÃüÁîµÄÊ±ºò»¹¿ÉÒÔÖªµÀËùÑ¡ÔñµÄ×ÊÔ´ÊÇÄÄĞ©
+// é™¤äº†å…³å¡ç¼–è¾‘å™¨ï¼Œâ€œå†…å®¹æµè§ˆå™¨â€ä¹Ÿæœ‰ç±»ä¼¼çš„FUICommandListã€‚å®ƒåœ¨è§¦å‘å‘½ä»¤çš„æ—¶å€™è¿˜å¯ä»¥çŸ¥é“æ‰€é€‰æ‹©çš„èµ„æºæ˜¯å“ªäº›
 void FTestYaksueModule::CommandBAction(FOnContentBrowserGetSelection GetSelectionDelegate)
 {
-	//»ñµÃµ±Ç°Ñ¡ÔñµÄ×ÊÔ´
+	//è·å¾—å½“å‰é€‰æ‹©çš„èµ„æº
 	TArray<FAssetData> SelectedAssets;
 	TArray<FString> SelectedPaths;
 	if (GetSelectionDelegate.IsBound())
 		GetSelectionDelegate.Execute(SelectedAssets, SelectedPaths);
 
-	//ÒªÏÔÊ¾µÄĞÅÏ¢£º
+	//è¦æ˜¾ç¤ºçš„ä¿¡æ¯ï¼š
 	FString Message = "Execute CommandB:";
 	for (auto ad : SelectedAssets)
 		Message += ad.GetAsset()->GetName() + " ";
-	//ÏÔÊ¾¶Ô»°¿ò
+	//æ˜¾ç¤ºå¯¹è¯æ¡†
 	FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(Message));
 }
 
